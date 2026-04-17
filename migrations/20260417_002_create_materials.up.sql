@@ -1,0 +1,9 @@
+-- 20260417_002_create_materials.up.sql
+
+CREATE TABLE materials (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE COMMENT 'Название материала',
+  description TEXT COMMENT 'Описание материала',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
