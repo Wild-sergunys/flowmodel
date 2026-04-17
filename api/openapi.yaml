@@ -1,0 +1,1127 @@
+openapi: 3.0.0
+info:
+  title: flowmodel API
+  description: API для моделирования неизотермического течения аномально-вязких материалов в канале с подвижной крышкой
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер разработки
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Сессионная кука, устанавливаемая после успешного входа
+
+  schemas:
+    # Аутентификация
+    LoginRequest:
+      type: object
+      required:
+        - login
+        - password
+      properties:
+        login:
+          type: string
+          minLength: 3
+          maxLength: 50
+          description: Логин пользователя
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+          description: Пароль пользователя
+          format: password
+
+    LoginResponse:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [researcher, admin]
+          description: Роль авторизованного пользователя
+        message:
+          type: string
+          description: Сообщение о статусе входа
+
+    # Расчёт
+    CalculationInput:
+      type: object
+      required:
+        - w
+        - h
+        - l
+        - vu
+        - tu
+        - material_id
+        - t0
+        - steps
+      properties:
+        w:
+          type: number
+          format: double
+          minimum: 0.001
+          maximum: 10.0
+          description: Ширина канала, м
+          example: 0.25
+        h:
+          type: number
+          format: double
+          minimum: 0.001
+          maximum: 1.0
+          description: Глубина канала, м
+          example: 0.01
+        l:
+          type: number
+          format: double
+          minimum: 0.01
+          maximum: 100.0
+          description: Длина канала, м
+          example: 9.5
+        vu:
+          type: number
+          format: double
+          minimum: 0.0
+          maximum: 100.0
+          description: Скорость верхней крышки, м/с
+          example: 1.5
+        tu:
+          type: number
+          format: double
+          minimum: 0.0
+          maximum: 500.0
+          description: Температура верхней крышки, °С
+          example: 150.0
+        material_id:
+          type: integer
+          minimum: 1
+          description: Идентификатор материала из справочника
+          example: 1
+        t0:
+          type: number
+          format: double
+          minimum: 0.0
+          maximum: 500.0
+          description: Начальная температура материала (температура плавления), °С
+          example: 145.0
+        steps:
+          type: integer
+          minimum: 10
+          maximum: 100000
+          description: Количество шагов интегрирования по длине канала
+          example: 1000
+
+    Point:
+      type: object
+      description: Точка профиля по длине канала
+      properties:
+        x:
+          type: number
+          format: double
+          description: Координата по длине канала, м
+          example: 1.5
+        temperature:
+          type: number
+          format: double
+          description: Средняя температура материала в сечении, °С
+          example: 152.3
+        viscosity:
+          type: number
+          format: double
+          description: Динамическая вязкость материала в сечении, Па·с
+          example: 8450.2
+
+    Metrics:
+      type: object
+      description: Показатели экономичности расчёта
+      properties:
+        calc_time_ms:
+          type: integer
+          description: Время расчёта в миллисекундах
+          example: 42
+        memory_used_bytes:
+          type: integer
+          description: Объём использованной оперативной памяти в байтах
+          example: 2048000
+
+    CalculationResult:
+      type: object
+      description: Результаты моделирования
+      properties:
+        productivity:
+          type: number
+          format: double
+          description: Объёмный расход (производительность), м³/с
+          example: 0.001875
+        temperature:
+          type: number
+          format: double
+          description: Температура продукта на выходе из канала, °С
+          example: 158.7
+        viscosity:
+          type: number
+          format: double
+          description: Вязкость продукта на выходе из канала, Па·с
+          example: 6200.5
+        profile:
+          type: array
+          description: Распределения температуры и вязкости по длине канала
+          items:
+            $ref: '#/components/schemas/Point'
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+
+    # Справочники
+    Material:
+      type: object
+      description: Тип перерабатываемого материала
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          description: Уникальный идентификатор
+          example: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Название материала
+          example: "Поливинилхлорид (ПВХ)"
+        description:
+          type: string
+          nullable: true
+          description: Текстовое описание материала
+          example: "Термопластичный полимер, используемый в производстве труб и профилей"
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Дата и время создания записи
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Дата и время последнего обновления записи
+
+    MaterialListItem:
+      type: object
+      description: Краткая информация о материале для выпадающего списка
+      properties:
+        id:
+          type: integer
+          description: Уникальный идентификатор
+        name:
+          type: string
+          description: Название материала
+
+    Parameter:
+      type: object
+      description: Мета-описание параметра (словарь)
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          description: Уникальный идентификатор
+          example: 1
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: '^[a-z0-9_]+$'
+          description: Технический код параметра (латиница, цифры, подчёркивание)
+          example: "density"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Человекочитаемое название параметра
+          example: "Плотность"
+        unit:
+          type: string
+          nullable: true
+          description: Единица измерения
+          example: "кг/м³"
+        data_type:
+          type: string
+          enum: [float, int, string]
+          description: Тип данных значения параметра
+          example: "float"
+        category:
+          type: string
+          enum: [material_property, empirical_coefficient, process_parameter]
+          description: Категория параметра
+          example: "material_property"
+        description:
+          type: string
+          nullable: true
+          description: Расширенное описание параметра
+          example: "Масса единицы объёма материала"
+
+    MaterialParameterValue:
+      type: object
+      description: Значение параметра для конкретного материала (EAV)
+      properties:
+        parameter_id:
+          type: integer
+          description: Идентификатор параметра из словаря
+        parameter_code:
+          type: string
+          readOnly: true
+          description: Код параметра (для удобства клиента)
+        parameter_name:
+          type: string
+          readOnly: true
+          description: Название параметра (для удобства клиента)
+        unit:
+          type: string
+          nullable: true
+          readOnly: true
+          description: Единица измерения
+        data_type:
+          type: string
+          enum: [float, int, string]
+          readOnly: true
+          description: Тип данных
+        value_float:
+          type: number
+          format: double
+          nullable: true
+          description: Числовое значение (для float/int)
+        value_string:
+          type: string
+          nullable: true
+          description: Строковое значение (для string)
+
+    MaterialParameterUpdateItem:
+      type: object
+      description: Элемент для пакетного обновления значений параметров материала
+      required:
+        - parameter_id
+      properties:
+        parameter_id:
+          type: integer
+          description: Идентификатор параметра
+        value_float:
+          type: number
+          format: double
+          nullable: true
+          description: Числовое значение (если параметр числовой)
+        value_string:
+          type: string
+          nullable: true
+          description: Строковое значение (если параметр строковый)
+
+    # Пользователи
+    User:
+      type: object
+      description: Учётная запись пользователя
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          description: Уникальный идентификатор
+          example: 1
+        login:
+          type: string
+          minLength: 3
+          maxLength: 50
+          description: Логин пользователя
+          example: "ivanov"
+        role:
+          type: string
+          enum: [researcher, admin]
+          description: Роль пользователя
+          example: "researcher"
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Дата и время создания учётной записи
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Дата и время последнего обновления
+
+    CreateUserRequest:
+      type: object
+      required:
+        - login
+        - password
+        - role
+      properties:
+        login:
+          type: string
+          minLength: 3
+          maxLength: 50
+          description: Логин нового пользователя
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+          description: Пароль (будет захэширован на сервере)
+          format: password
+        role:
+          type: string
+          enum: [researcher, admin]
+          description: Роль пользователя
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+          description: Новый пароль (если требуется сменить)
+          format: password
+        role:
+          type: string
+          enum: [researcher, admin]
+          description: Новая роль
+
+    # Ошибки
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Тип ошибки
+          example: "validation_error"
+        message:
+          type: string
+          description: Человекочитаемое сообщение об ошибке
+          example: "Поле 'w' должно быть больше 0.001"
+        details:
+          type: object
+          additionalProperties: true
+          description: Дополнительные детали ошибки (например, какие поля не прошли валидацию)
+
+    # Общие ответы
+    IdResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Идентификатор созданной/обновлённой сущности
+          example: 5
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Информационное сообщение
+          example: "Операция выполнена успешно"
+
+# ПУТИ
+paths:
+  # АУТЕНТИФИКАЦИЯ
+  /api/auth/login:
+    post:
+      summary: Вход в систему
+      description: |
+        Аутентификация пользователя по логину и паролю.
+        При успешном входе сервер устанавливает сессионную куку `session`.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+          headers:
+            Set-Cookie:
+              description: Сессионная кука
+              schema:
+                type: string
+                example: session=abc123; Path=/; HttpOnly; SameSite=Strict
+        '401':
+          description: Неверный логин или пароль
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "invalid_credentials"
+                message: "Неверный логин или пароль"
+
+  /api/auth/logout:
+    post:
+      summary: Выход из системы
+      description: Завершение сеанса работы. Сессионная кука удаляется.
+      tags: [Auth]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Успешный выход
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "Выход выполнен успешно"
+          headers:
+            Set-Cookie:
+              description: Кука с истёкшим сроком действия
+              schema:
+                type: string
+                example: session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT
+        '401':
+          description: Пользователь не авторизован
+
+  /api/auth/me:
+    get:
+      summary: Информация о текущем пользователе
+      description: Возвращает данные авторизованного пользователя
+      tags: [Auth]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Данные пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Не авторизован
+
+  # РАСЧЁТ
+  /api/calculate:
+    post:
+      summary: Расчёт параметров течения
+      description: |
+        Выполняет численное моделирование неизотермического течения
+        аномально-вязкого материала в канале с подвижной крышкой.
+        Возвращает распределения температуры и вязкости по длине канала,
+        а также итоговые показатели процесса.
+      tags: [Calculation]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculationInput'
+      responses:
+        '200':
+          description: Результаты расчёта
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculationResult'
+        '400':
+          description: Ошибка валидации входных данных
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '500':
+          description: Внутренняя ошибка сервера при расчёте
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # МАТЕРИАЛЫ (общий доступ)
+  /api/materials:
+    get:
+      summary: Список материалов (краткий)
+      description: Возвращает список всех материалов для использования в выпадающем списке
+      tags: [Materials]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Список материалов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MaterialListItem'
+        '401':
+          description: Не авторизован
+
+  # АДМИНИСТРИРОВАНИЕ: МАТЕРИАЛЫ
+  /api/admin/materials:
+    get:
+      summary: Список материалов (полный)
+      description: Возвращает полную информацию обо всех материалах
+      tags: [Admin - Materials]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Список материалов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Material'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён (требуются права администратора)
+
+    post:
+      summary: Создать материал
+      description: Добавляет новый тип материала в справочник
+      tags: [Admin - Materials]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: Название материала
+                description:
+                  type: string
+                  nullable: true
+                  description: Описание материала
+      responses:
+        '201':
+          description: Материал создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '400':
+          description: Ошибка валидации (например, материал с таким именем уже существует)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+
+  /api/admin/materials/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Идентификатор материала
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Получить материал по ID
+      tags: [Admin - Materials]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Информация о материале
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Material'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Материал не найден
+
+    put:
+      summary: Обновить материал
+      description: Изменяет название и/или описание материала
+      tags: [Admin - Materials]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: Новое название
+                description:
+                  type: string
+                  nullable: true
+                  description: Новое описание
+      responses:
+        '200':
+          description: Материал обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Материал не найден
+
+    delete:
+      summary: Удалить материал
+      description: |
+        Удаляет материал из справочника.
+        Связанные значения параметров также будут удалены (каскадно).
+      tags: [Admin - Materials]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Материал удалён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Материал не найден
+
+  # АДМИНИСТРИРОВАНИЕ: ЗНАЧЕНИЯ ПАРАМЕТРОВ МАТЕРИАЛОВ
+  /api/admin/materials/{id}/parameters:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Идентификатор материала
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Получить значения параметров материала
+      description: Возвращает все параметры и их значения для указанного материала
+      tags: [Admin - Material Parameters]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Список значений параметров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MaterialParameterValue'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Материал не найден
+
+    put:
+      summary: Обновить значения параметров материала
+      description: |
+        Пакетное обновление значений параметров для материала.
+        Можно передать как все параметры сразу, так и только изменившиеся.
+      tags: [Admin - Material Parameters]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/MaterialParameterUpdateItem'
+      responses:
+        '200':
+          description: Значения обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Ошибка валидации (неверный тип значения, неизвестный параметр и т.д.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Материал не найден
+
+  # АДМИНИСТРИРОВАНИЕ: СЛОВАРЬ ПАРАМЕТРОВ
+  /api/admin/parameters:
+    get:
+      summary: Список всех параметров (словарь)
+      description: Возвращает мета-описания всех параметров системы
+      tags: [Admin - Parameters Dictionary]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Список параметров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Parameter'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+
+    post:
+      summary: Создать параметр
+      description: Добавляет новый параметр в словарь
+      tags: [Admin - Parameters Dictionary]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, data_type, category]
+              properties:
+                code:
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+                  pattern: '^[a-z0-9_]+$'
+                  description: Технический код (латиница, цифры, _)
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: Человекочитаемое название
+                unit:
+                  type: string
+                  nullable: true
+                  description: Единица измерения
+                data_type:
+                  type: string
+                  enum: [float, int, string]
+                  description: Тип данных значения
+                category:
+                  type: string
+                  enum: [material_property, empirical_coefficient, process_parameter]
+                  description: Категория параметра
+                description:
+                  type: string
+                  nullable: true
+                  description: Расширенное описание
+      responses:
+        '201':
+          description: Параметр создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '400':
+          description: Ошибка валидации (например, параметр с таким кодом уже существует)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+
+  /api/admin/parameters/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Идентификатор параметра
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Получить параметр по ID
+      tags: [Admin - Parameters Dictionary]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Информация о параметре
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parameter'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Параметр не найден
+
+    put:
+      summary: Обновить параметр
+      description: Изменяет мета-данные параметра. Код параметра изменить нельзя.
+      tags: [Admin - Parameters Dictionary]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                unit:
+                  type: string
+                  nullable: true
+                data_type:
+                  type: string
+                  enum: [float, int, string]
+                category:
+                  type: string
+                  enum: [material_property, empirical_coefficient, process_parameter]
+                description:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Параметр обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Параметр не найден
+
+    delete:
+      summary: Удалить параметр
+      description: |
+        Удаляет параметр из словаря.
+        Все значения этого параметра для материалов будут удалены (каскадно).
+        **Важно:** Нельзя удалить параметр, который используется в расчётах
+        (будет проверка на сервере).
+      tags: [Admin - Parameters Dictionary]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Параметр удалён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Невозможно удалить параметр (например, он необходим для расчётов)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Параметр не найден
+
+  # АДМИНИСТРИРОВАНИЕ: ПОЛЬЗОВАТЕЛИ
+  /api/admin/users:
+    get:
+      summary: Список пользователей
+      description: Возвращает список всех учётных записей
+      tags: [Admin - Users]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Список пользователей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+
+    post:
+      summary: Создать пользователя
+      description: Добавляет новую учётную запись
+      tags: [Admin - Users]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '400':
+          description: Ошибка валидации (например, пользователь с таким логином уже существует)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+
+  /api/admin/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Идентификатор пользователя
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Получить пользователя по ID
+      tags: [Admin - Users]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Информация о пользователе
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Пользователь не найден
+
+    put:
+      summary: Обновить пользователя
+      description: Изменяет пароль и/или роль пользователя. Логин изменить нельзя.
+      tags: [Admin - Users]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Пользователь обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Ошибка валидации (например, нельзя понизить роль последнему админу)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Пользователь не найден
+
+    delete:
+      summary: Удалить пользователя
+      description: |
+        Удаляет учётную запись пользователя.
+        **Важно:** Нельзя удалить последнего администратора системы.
+      tags: [Admin - Users]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Пользователь удалён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Невозможно удалить пользователя (например, последний админ)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+        '404':
+          description: Пользователь не найден
+
+# ТЕГИ ДЛЯ ГРУППИРОВКИ
+tags:
+  - name: Auth
+    description: Аутентификация и управление сессией
+  - name: Calculation
+    description: Расчёт параметров течения
+  - name: Materials
+    description: Справочник материалов (общий доступ)
+  - name: Admin - Materials
+    description: Управление материалами (только для администратора)
+  - name: Admin - Material Parameters
+    description: Управление значениями параметров материалов (только для администратора)
+  - name: Admin - Parameters Dictionary
+    description: Управление словарём параметров (только для администратора)
+  - name: Admin - Users
+    description: Управление пользователями (только для администратора)
