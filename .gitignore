@@ -1,16 +1,80 @@
-# Бинарники
+
+# >>>>>>>>>>>>>>>>>>>>>>>>
+# Бинарники и компиляция
+# >>>>>>>>>>>>>>>>>>>>>>>>
 *.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 *.test
 *.out
-/rpk
+flowmodel
+flowmodel.exe
 /server
+/server.exe
+/dist/
+/bin/
 
+# >>>>>>>>>>>>>>>
+# Зависимости Go
+# >>>>>>>>>>>>>>>
+vendor/
+
+# >>>>>>>>>>>
 # Файлы IDE
-.idea/
+# >>>>>>>>>>>
+# Visual Studio Code
 .vscode/
+*.code-workspace
+
+# Vim
 *.swp
 *.swo
+*~
 
+# >>>>>>>>>>>>>>>>>
 # Системные файлы
+# >>>>>>>>>>>>>>>>>
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# >>>>>>>>>>>>>>>>>>>>>>>>
+# Конфигурация и секреты
+# >>>>>>>>>>>>>>>>>>>>>>>>
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+configs/config.yaml
+!configs/config.example.yaml
+
+# >>>>>>>>
+# Docker
+# >>>>>>>>
+docker-compose.override.yml
+.DS_Store
+data/mysql/
+data/backup/
+
+# >>>>>>>>>>>>>>>>>>>>>>>>
+# Логи и временные файлы
+# >>>>>>>>>>>>>>>>>>>>>>>>
+*.log
+logs/
+tmp/
+temp/
+EOF
