@@ -1,5 +1,7 @@
 -- 20260417_001_create_users.up.sql
 
+SET NAMES utf8mb4;
+
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     login VARCHAR(50) NOT NULL UNIQUE,

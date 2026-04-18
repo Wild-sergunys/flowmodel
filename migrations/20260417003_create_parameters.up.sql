@@ -1,5 +1,7 @@
 -- 20260417_003_create_parameters.up.sql
 
+SET NAMES utf8mb4;
+
 CREATE TABLE parameters (
   id INT AUTO_INCREMENT PRIMARY KEY,
   code VARCHAR(50) NOT NULL UNIQUE COMMENT 'Технический код',

@@ -1,5 +1,7 @@
 -- 20260417_002_create_materials.up.sql
 
+SET NAMES utf8mb4;
+
 CREATE TABLE materials (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE COMMENT 'Название материала',

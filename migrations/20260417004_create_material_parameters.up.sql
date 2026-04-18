@@ -1,5 +1,7 @@
 -- 20260417_004_create_material_parameters.up.sql
 
+SET NAMES utf8mb4;
+
 CREATE TABLE material_parameters (
   material_id INT NOT NULL,
   parameter_id INT NOT NULL,
