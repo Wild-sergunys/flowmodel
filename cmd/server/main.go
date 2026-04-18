@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 
+	"flowmodel/internal/handler"
 	"flowmodel/internal/repository"
 )
 
@@ -64,13 +66,14 @@ func main() {
 	log.Println("Подключено к MySQL")
 
 	repo := repository.NewMaterialRepo(db)
-	materials, err := repo.FindAll(ctx) // ← исправлено
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	log.Printf("Найдено %d материалов", len(materials))
-	for _, m := range materials {
-		log.Printf("ID: %d, Name: %s", m.ID, m.Name)
+	materialHandler := handler.NewMaterialHandler(repo)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/materials", materialHandler.GetAll)
+
+	log.Println("Сервер запущен на http://localhost:8080")
+	if err := http.ListenAndServe(":8080", mux); err != nil {
+		log.Fatal("Ошибка запуска сервера", err)
 	}
 }
