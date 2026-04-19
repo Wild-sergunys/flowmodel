@@ -4,12 +4,23 @@ API для моделирования неизотермического теч�
 
 ## Быстрый старт
 
-```bash
-# Запустить сервер
-go run cmd/server/main.go
+Для запуска потребуется установленный Docker и Docker Compose.
 
-# API доступно на http://localhost:8080
-```
+### 1. Клонировать репозиторий
+
+    git clone https://github.com/Wild-sergunys/flowmodel.git
+    cd flowmodel
+
+### 2. Создать `.env`
+
+    cp .env.example .env
+
+При необходимости отредактируйте значения в `.env`.
+
+### 3. Запустить проект
+
+    docker-compose up --build
+
 
 ## Аутентификация
 
