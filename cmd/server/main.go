@@ -40,6 +40,7 @@ func main() {
 	materialRepo := repository.NewMaterialRepo(db)
 	paramRepo := repository.NewParameterRepo(db)
 	materialParamRepo := repository.NewMaterialParameterRepo(db)
+	calcRepo := repository.NewCalculationRepo(db)
 
 	// Хэндлеры
 	authHandler := handler.NewAuthHandler(userRepo, jwtKey)
@@ -47,7 +48,8 @@ func main() {
 	adminHandler := handler.NewAdminHandler(materialRepo)
 	userHandler := handler.NewUserHandler(userRepo)
 	paramHandler := handler.NewParameterHandler(paramRepo)
-	calcHandler := handler.NewCalculationHandler(materialParamRepo, materialRepo)
+	calcHandler := handler.NewCalculationHandler(materialParamRepo, materialRepo, calcRepo)
+	resultsHandler := handler.NewResultsHandler(calcRepo)
 
 	// Middleware
 	authMiddleware := middleware.AuthMiddleware([]byte(jwtKey))
@@ -91,6 +93,12 @@ func main() {
 	mux.Handle("GET /api/admin/users/{id}", authMiddleware(adminMiddleware(http.HandlerFunc(userHandler.GetByID))))
 	mux.Handle("PUT /api/admin/users/{id}", authMiddleware(adminMiddleware(http.HandlerFunc(userHandler.Update))))
 	mux.Handle("DELETE /api/admin/users/{id}", authMiddleware(adminMiddleware(http.HandlerFunc(userHandler.Delete))))
+
+	// Results
+	mux.Handle("GET /api/results", authMiddleware(http.HandlerFunc(resultsHandler.GetAll)))
+	mux.Handle("GET /api/results/{id}", authMiddleware(http.HandlerFunc(resultsHandler.GetByID)))
+	mux.Handle("GET /api/results/{id}/report", authMiddleware(http.HandlerFunc(resultsHandler.GetReport)))
+	mux.Handle("GET /api/results/{id}/download", authMiddleware(http.HandlerFunc(resultsHandler.Download)))
 
 	log.Printf("Сервер запущен на http://localhost:%s", cfg.ServerPort)
 	if err := http.ListenAndServe(":"+cfg.ServerPort, mux); err != nil {
