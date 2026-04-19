@@ -5,23 +5,29 @@ import (
 	"math"
 	"net/http"
 
+	"flowmodel/internal/middleware"
 	"flowmodel/internal/model"
 	"flowmodel/internal/repository"
 	"flowmodel/internal/validator"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type CalculationHandler struct {
 	materialParamRepo repository.MaterialParameterRepository
 	materialRepo      repository.MaterialRepository
+	calcRepo          repository.CalculationRepository
 }
 
 func NewCalculationHandler(
 	materialParamRepo repository.MaterialParameterRepository,
 	materialRepo repository.MaterialRepository,
+	calcRepo repository.CalculationRepository,
 ) *CalculationHandler {
 	return &CalculationHandler{
 		materialParamRepo: materialParamRepo,
 		materialRepo:      materialRepo,
+		calcRepo:          calcRepo,
 	}
 }
 
@@ -123,6 +129,30 @@ func (h *CalculationHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 			MemoryUsedBytes: 2048000,
 		},
 	}
+
+	inputJSON, _ := json.Marshal(input)
+	resultJSON, _ := json.Marshal(result)
+
+	// TODO: userID брать из JWT, пока заглушка = 1
+	userID := 1
+	claims, ok := r.Context().Value(middleware.UserContextKey).(jwt.MapClaims)
+	if ok {
+		userID = int(claims["user_id"].(float64))
+	}
+
+	calc := &model.Calculation{
+		UserID:     userID,
+		MaterialID: input.MaterialID,
+		InputJSON:  string(inputJSON),
+		ResultJSON: string(resultJSON),
+	}
+
+	if err := h.calcRepo.Create(r.Context(), calc); err != nil {
+		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка сохранения расчёта", nil)
+		return
+	}
+
+	result.ID = calc.ID
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)

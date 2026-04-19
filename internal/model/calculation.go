@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 type CalculationInput struct {
 	// Геометрия
 	W float64 `json:"w"`
@@ -30,9 +32,19 @@ type Metrics struct {
 }
 
 type CalculationResult struct {
+	ID           int     `json:"id,omitempty"`
 	Productivity float64 `json:"productivity"`
 	Temperature  float64 `json:"temperature"`
 	Viscosity    float64 `json:"viscosity"`
 	Profile      []Point `json:"profile"`
 	Metrics      Metrics `json:"metrics"`
+}
+
+type Calculation struct {
+	ID         int       `json:"id"`
+	UserID     int       `json:"user_id"`
+	MaterialID int       `json:"material_id"`
+	InputJSON  string    `json:"input_json"`
+	ResultJSON string    `json:"result_json"`
+	CreatedAt  time.Time `json:"created_at"`
 }
