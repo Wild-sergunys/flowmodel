@@ -1,0 +1,18 @@
+{{ define "layout" }}
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ .Title }}</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <script src="/static/js/app.js" defer></script>
+  </head>
+  <body>
+    {{ template "header" . }}
+    <main class="page">
+      {{ block "content" . }}{{ end }}
+    </main>
+  </body>
+</html>
+{{ end }}

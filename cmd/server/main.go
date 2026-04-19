@@ -12,6 +12,7 @@ import (
 	"flowmodel/internal/handler"
 	"flowmodel/internal/middleware"
 	"flowmodel/internal/repository"
+	"flowmodel/web"
 )
 
 func main() {
@@ -50,6 +51,10 @@ func main() {
 	paramHandler := handler.NewParameterHandler(paramRepo)
 	calcHandler := handler.NewCalculationHandler(materialParamRepo, materialRepo, calcRepo)
 	resultsHandler := handler.NewResultsHandler(calcRepo)
+	webHandler, err := web.NewHandler()
+	if err != nil {
+		log.Fatal("Ошибка инициализации frontend:", err)
+	}
 
 	// Middleware
 	authMiddleware := middleware.AuthMiddleware([]byte(jwtKey))
@@ -57,6 +62,10 @@ func main() {
 
 	// Роутер
 	mux := http.NewServeMux()
+
+	// Frontend
+	mux.Handle("GET /static/", webHandler.Static())
+	mux.HandleFunc("GET /", webHandler.Home)
 
 	// Auth
 	mux.HandleFunc("POST /api/auth/register", authHandler.Register)
