@@ -10,14 +10,32 @@ servers:
 
 components:
   securitySchemes:
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: session
-      description: Сессионная кука, устанавливаемая после успешного входа
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT токен, полученный при входе
 
   schemas:
     # Аутентификация
+    RegisterRequest:
+      type: object
+      required:
+        - login
+        - password
+      properties:
+        login:
+          type: string
+          minLength: 3
+          maxLength: 50
+          description: Логин пользователя
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+          description: Пароль пользователя
+          format: password
+
     LoginRequest:
       type: object
       required:
@@ -39,13 +57,13 @@ components:
     LoginResponse:
       type: object
       properties:
+        token:
+          type: string
+          description: JWT токен для авторизации
         role:
           type: string
           enum: [researcher, admin]
           description: Роль авторизованного пользователя
-        message:
-          type: string
-          description: Сообщение о статусе входа
 
     # Расчёт
     CalculationInput:
@@ -151,6 +169,10 @@ components:
       type: object
       description: Результаты моделирования
       properties:
+        id:
+          type: integer
+          description: Идентификатор сохранённого расчёта
+          example: 42
         productivity:
           type: number
           format: double
@@ -259,60 +281,11 @@ components:
           nullable: true
           description: Расширенное описание параметра
           example: "Масса единицы объёма материала"
-
-    MaterialParameterValue:
-      type: object
-      description: Значение параметра для конкретного материала (EAV)
-      properties:
-        parameter_id:
-          type: integer
-          description: Идентификатор параметра из словаря
-        parameter_code:
+        created_at:
           type: string
+          format: date-time
           readOnly: true
-          description: Код параметра (для удобства клиента)
-        parameter_name:
-          type: string
-          readOnly: true
-          description: Название параметра (для удобства клиента)
-        unit:
-          type: string
-          nullable: true
-          readOnly: true
-          description: Единица измерения
-        data_type:
-          type: string
-          enum: [float, int, string]
-          readOnly: true
-          description: Тип данных
-        value_float:
-          type: number
-          format: double
-          nullable: true
-          description: Числовое значение (для float/int)
-        value_string:
-          type: string
-          nullable: true
-          description: Строковое значение (для string)
-
-    MaterialParameterUpdateItem:
-      type: object
-      description: Элемент для пакетного обновления значений параметров материала
-      required:
-        - parameter_id
-      properties:
-        parameter_id:
-          type: integer
-          description: Идентификатор параметра
-        value_float:
-          type: number
-          format: double
-          nullable: true
-          description: Числовое значение (если параметр числовой)
-        value_string:
-          type: string
-          nullable: true
-          description: Строковое значение (если параметр строковый)
+          description: Дата и время создания записи
 
     # Пользователи
     User:
@@ -372,16 +345,59 @@ components:
     UpdateUserRequest:
       type: object
       properties:
-        password:
-          type: string
-          minLength: 6
-          maxLength: 100
-          description: Новый пароль (если требуется сменить)
-          format: password
         role:
           type: string
           enum: [researcher, admin]
-          description: Новая роль
+          description: Новая роль пользователя
+
+    # История расчётов
+    CalculationHistoryItem:
+      type: object
+      description: Элемент истории расчётов
+      properties:
+        id:
+          type: integer
+          description: Идентификатор расчёта
+        user_id:
+          type: integer
+          description: ID пользователя, выполнившего расчёт
+        material_id:
+          type: integer
+          description: ID использованного материала
+        input_json:
+          type: string
+          description: Входные параметры в формате JSON
+        result_json:
+          type: string
+          description: Результаты расчёта в формате JSON
+        created_at:
+          type: string
+          format: date-time
+          description: Дата и время выполнения расчёта
+
+    CalculationReport:
+      type: object
+      description: Отчёт о расчёте
+      properties:
+        id:
+          type: integer
+          description: Идентификатор расчёта
+        user_id:
+          type: integer
+          description: ID пользователя
+        material_id:
+          type: integer
+          description: ID материала
+        created_at:
+          type: string
+          format: date-time
+          description: Дата и время расчёта
+        input:
+          type: object
+          description: Входные параметры расчёта
+        result:
+          type: object
+          description: Результаты расчёта
 
     # Ошибки
     ErrorResponse:
@@ -398,7 +414,7 @@ components:
         details:
           type: object
           additionalProperties: true
-          description: Дополнительные детали ошибки (например, какие поля не прошли валидацию)
+          description: Дополнительные детали ошибки
 
     # Общие ответы
     IdResponse:
@@ -417,15 +433,58 @@ components:
           description: Информационное сообщение
           example: "Операция выполнена успешно"
 
+    ValidationSuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Валидация пройдена"
+
 # ПУТИ
 paths:
   # АУТЕНТИФИКАЦИЯ
+  /api/auth/register:
+    post:
+      summary: Регистрация нового пользователя
+      description: |
+        Создаёт новую учётную запись с ролью researcher.
+        Доступно без авторизации.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '400':
+          description: Ошибка валидации или пользователь уже существует
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                conflict:
+                  value:
+                    error: "conflict"
+                    message: "Пользователь уже существует"
+                validation:
+                  value:
+                    error: "validation_error"
+                    message: "Логин и пароль обязательны"
+
   /api/auth/login:
     post:
       summary: Вход в систему
       description: |
         Аутентификация пользователя по логину и паролю.
-        При успешном входе сервер устанавливает сессионную куку `session`.
+        Возвращает JWT токен для авторизации.
       tags: [Auth]
       requestBody:
         required: true
@@ -440,12 +499,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LoginResponse'
-          headers:
-            Set-Cookie:
-              description: Сессионная кука
-              schema:
-                type: string
-                example: session=abc123; Path=/; HttpOnly; SameSite=Strict
         '401':
           description: Неверный логин или пароль
           content:
@@ -459,10 +512,12 @@ paths:
   /api/auth/logout:
     post:
       summary: Выход из системы
-      description: Завершение сеанса работы. Сессионная кука удаляется.
+      description: |
+        Завершение сеанса работы.
+        Клиент должен удалить JWT токен.
       tags: [Auth]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Успешный выход
@@ -472,14 +527,6 @@ paths:
                 $ref: '#/components/schemas/MessageResponse'
               example:
                 message: "Выход выполнен успешно"
-          headers:
-            Set-Cookie:
-              description: Кука с истёкшим сроком действия
-              schema:
-                type: string
-                example: session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT
-        '401':
-          description: Пользователь не авторизован
 
   /api/auth/me:
     get:
@@ -487,7 +534,7 @@ paths:
       description: Возвращает данные авторизованного пользователя
       tags: [Auth]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Данные пользователя
@@ -495,6 +542,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '401':
+          description: Не авторизован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ВАЛИДАЦИЯ
+  /api/validate:
+    post:
+      summary: Валидация входных параметров
+      description: |
+        Проверяет корректность входных параметров без выполнения расчёта.
+        Полезно для предварительной проверки формы.
+      tags: [Calculation]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculationInput'
+      responses:
+        '200':
+          description: Валидация пройдена успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationSuccessResponse'
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "validation_error"
+                message: "Ошибка валидации"
+                details:
+                  fields:
+                    - field: "w"
+                      message: "должно быть от 0.001 до 10.0"
         '401':
           description: Не авторизован
 
@@ -507,9 +597,10 @@ paths:
         аномально-вязкого материала в канале с подвижной крышкой.
         Возвращает распределения температуры и вязкости по длине канала,
         а также итоговые показатели процесса.
+        Результаты автоматически сохраняются в истории расчётов.
       tags: [Calculation]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -538,6 +629,119 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  # ИСТОРИЯ РАСЧЁТОВ
+  /api/results:
+    get:
+      summary: История расчётов
+      description: Возвращает список всех сохранённых расчётов
+      tags: [Results]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список расчётов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CalculationHistoryItem'
+        '401':
+          description: Не авторизован
+
+  /api/results/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Идентификатор расчёта
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Получить расчёт по ID
+      description: Возвращает полную информацию о сохранённом расчёте
+      tags: [Results]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Данные расчёта
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculationHistoryItem'
+        '401':
+          description: Не авторизован
+        '404':
+          description: Расчёт не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/results/{id}/report:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Идентификатор расчёта
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Получить отчёт о расчёте
+      description: Возвращает структурированный отчёт с входными и выходными данными
+      tags: [Results]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Отчёт о расчёте
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculationReport'
+        '401':
+          description: Не авторизован
+        '404':
+          description: Расчёт не найден
+
+  /api/results/{id}/download:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Идентификатор расчёта
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Скачать отчёт
+      description: |
+        Скачивает отчёт о расчёте в формате JSON.
+        Файл имеет имя report_{id}.json
+      tags: [Results]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Файл отчёта
+          content:
+            application/json:
+              schema:
+                type: object
+          headers:
+            Content-Disposition:
+              description: Имя файла для скачивания
+              schema:
+                type: string
+                example: attachment; filename=report_42.json
+        '401':
+          description: Не авторизован
+        '404':
+          description: Расчёт не найден
+
   # МАТЕРИАЛЫ (общий доступ)
   /api/materials:
     get:
@@ -545,7 +749,7 @@ paths:
       description: Возвращает список всех материалов для использования в выпадающем списке
       tags: [Materials]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Список материалов
@@ -565,7 +769,7 @@ paths:
       description: Возвращает полную информацию обо всех материалах
       tags: [Admin - Materials]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Список материалов
@@ -585,7 +789,7 @@ paths:
       description: Добавляет новый тип материала в справочник
       tags: [Admin - Materials]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -611,7 +815,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IdResponse'
         '400':
-          description: Ошибка валидации (например, материал с таким именем уже существует)
+          description: Ошибка валидации
           content:
             application/json:
               schema:
@@ -634,7 +838,7 @@ paths:
       summary: Получить материал по ID
       tags: [Admin - Materials]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Информация о материале
@@ -654,7 +858,7 @@ paths:
       description: Изменяет название и/или описание материала
       tags: [Admin - Materials]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -678,6 +882,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "Материал обновлён"
         '400':
           description: Ошибка валидации
           content:
@@ -693,12 +899,10 @@ paths:
 
     delete:
       summary: Удалить материал
-      description: |
-        Удаляет материал из справочника.
-        Связанные значения параметров также будут удалены (каскадно).
+      description: Удаляет материал из справочника
       tags: [Admin - Materials]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Материал удалён
@@ -706,74 +910,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
-        '401':
-          description: Не авторизован
-        '403':
-          description: Доступ запрещён
-        '404':
-          description: Материал не найден
-
-  # АДМИНИСТРИРОВАНИЕ: ЗНАЧЕНИЯ ПАРАМЕТРОВ МАТЕРИАЛОВ
-  /api/admin/materials/{id}/parameters:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        description: Идентификатор материала
-        schema:
-          type: integer
-          minimum: 1
-    get:
-      summary: Получить значения параметров материала
-      description: Возвращает все параметры и их значения для указанного материала
-      tags: [Admin - Material Parameters]
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          description: Список значений параметров
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MaterialParameterValue'
-        '401':
-          description: Не авторизован
-        '403':
-          description: Доступ запрещён
-        '404':
-          description: Материал не найден
-
-    put:
-      summary: Обновить значения параметров материала
-      description: |
-        Пакетное обновление значений параметров для материала.
-        Можно передать как все параметры сразу, так и только изменившиеся.
-      tags: [Admin - Material Parameters]
-      security:
-        - cookieAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                $ref: '#/components/schemas/MaterialParameterUpdateItem'
-      responses:
-        '200':
-          description: Значения обновлены
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MessageResponse'
-        '400':
-          description: Ошибка валидации (неверный тип значения, неизвестный параметр и т.д.)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Материал удалён"
         '401':
           description: Не авторизован
         '403':
@@ -788,7 +926,7 @@ paths:
       description: Возвращает мета-описания всех параметров системы
       tags: [Admin - Parameters Dictionary]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Список параметров
@@ -808,7 +946,7 @@ paths:
       description: Добавляет новый параметр в словарь
       tags: [Admin - Parameters Dictionary]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -852,7 +990,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IdResponse'
         '400':
-          description: Ошибка валидации (например, параметр с таким кодом уже существует)
+          description: Ошибка валидации
           content:
             application/json:
               schema:
@@ -875,7 +1013,7 @@ paths:
       summary: Получить параметр по ID
       tags: [Admin - Parameters Dictionary]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Информация о параметре
@@ -892,10 +1030,10 @@ paths:
 
     put:
       summary: Обновить параметр
-      description: Изменяет мета-данные параметра. Код параметра изменить нельзя.
+      description: Изменяет мета-данные параметра
       tags: [Admin - Parameters Dictionary]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -903,6 +1041,11 @@ paths:
             schema:
               type: object
               properties:
+                code:
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+                  pattern: '^[a-z0-9_]+$'
                 name:
                   type: string
                   minLength: 1
@@ -926,6 +1069,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "Параметр обновлён"
         '400':
           description: Ошибка валидации
           content:
@@ -941,14 +1086,10 @@ paths:
 
     delete:
       summary: Удалить параметр
-      description: |
-        Удаляет параметр из словаря.
-        Все значения этого параметра для материалов будут удалены (каскадно).
-        **Важно:** Нельзя удалить параметр, который используется в расчётах
-        (будет проверка на сервере).
+      description: Удаляет параметр из словаря
       tags: [Admin - Parameters Dictionary]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Параметр удалён
@@ -956,12 +1097,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
-        '400':
-          description: Невозможно удалить параметр (например, он необходим для расчётов)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Параметр удалён"
         '401':
           description: Не авторизован
         '403':
@@ -976,7 +1113,7 @@ paths:
       description: Возвращает список всех учётных записей
       tags: [Admin - Users]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Список пользователей
@@ -996,7 +1133,7 @@ paths:
       description: Добавляет новую учётную запись
       tags: [Admin - Users]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1011,7 +1148,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IdResponse'
         '400':
-          description: Ошибка валидации (например, пользователь с таким логином уже существует)
+          description: Ошибка валидации или пользователь уже существует
           content:
             application/json:
               schema:
@@ -1034,7 +1171,7 @@ paths:
       summary: Получить пользователя по ID
       tags: [Admin - Users]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Информация о пользователе
@@ -1051,10 +1188,10 @@ paths:
 
     put:
       summary: Обновить пользователя
-      description: Изменяет пароль и/или роль пользователя. Логин изменить нельзя.
+      description: Изменяет роль пользователя
       tags: [Admin - Users]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1068,8 +1205,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "Пользователь обновлён"
         '400':
-          description: Ошибка валидации (например, нельзя понизить роль последнему админу)
+          description: Ошибка валидации
           content:
             application/json:
               schema:
@@ -1083,12 +1222,10 @@ paths:
 
     delete:
       summary: Удалить пользователя
-      description: |
-        Удаляет учётную запись пользователя.
-        **Важно:** Нельзя удалить последнего администратора системы.
+      description: Удаляет учётную запись пользователя
       tags: [Admin - Users]
       security:
-        - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: Пользователь удалён
@@ -1096,12 +1233,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
-        '400':
-          description: Невозможно удалить пользователя (например, последний админ)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Пользователь удалён"
         '401':
           description: Не авторизован
         '403':
@@ -1114,13 +1247,13 @@ tags:
   - name: Auth
     description: Аутентификация и управление сессией
   - name: Calculation
-    description: Расчёт параметров течения
+    description: Расчёт параметров течения и валидация
+  - name: Results
+    description: История расчётов и отчёты
   - name: Materials
     description: Справочник материалов (общий доступ)
   - name: Admin - Materials
     description: Управление материалами (только для администратора)
-  - name: Admin - Material Parameters
-    description: Управление значениями параметров материалов (только для администратора)
   - name: Admin - Parameters Dictionary
     description: Управление словарём параметров (только для администратора)
   - name: Admin - Users
