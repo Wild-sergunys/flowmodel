@@ -31,6 +31,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-root}
       DB_NAME: ${DB_NAME:-flowmodel}
       SKIP_MIGRATIONS: "true"
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
     depends_on:
       db:
         condition: service_healthy
