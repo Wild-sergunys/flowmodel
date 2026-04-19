@@ -1,15 +1,21 @@
 package validator
 
-import "flowmodel/internal/model"
+import (
+	"context"
+
+	"flowmodel/internal/model"
+	"flowmodel/internal/repository"
+)
 
 type ValidationError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
 }
 
-func ValidateCalculationInput(input *model.CalculationInput) []ValidationError {
+func ValidateCalculationInput(input *model.CalculationInput, materialRepo repository.MaterialRepository) []ValidationError {
 	var errors []ValidationError
 
+	// Полнота
 	if input.W == 0 {
 		errors = append(errors, ValidationError{Field: "w", Message: "обязательное поле"})
 	}
@@ -26,6 +32,15 @@ func ValidateCalculationInput(input *model.CalculationInput) []ValidationError {
 		errors = append(errors, ValidationError{Field: "steps", Message: "обязательное поле"})
 	}
 
+	// Проверка существования материала
+	if input.MaterialID != 0 {
+		material, _ := materialRepo.FindByID(context.Background(), input.MaterialID)
+		if material == nil {
+			errors = append(errors, ValidationError{Field: "material_id", Message: "материал не найден"})
+		}
+	}
+
+	// Диапазоны
 	if input.W != 0 && (input.W < 0.001 || input.W > 10.0) {
 		errors = append(errors, ValidationError{Field: "w", Message: "должно быть от 0.001 до 10.0"})
 	}
@@ -48,6 +63,7 @@ func ValidateCalculationInput(input *model.CalculationInput) []ValidationError {
 		errors = append(errors, ValidationError{Field: "steps", Message: "должно быть от 10 до 100000"})
 	}
 
+	// Логическая совместимость
 	if input.T0 != 0 && input.Tu != 0 && input.T0 >= input.Tu {
 		errors = append(errors, ValidationError{Field: "t0", Message: "начальная температура должна быть меньше температуры крышки"})
 	}

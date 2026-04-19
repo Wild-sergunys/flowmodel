@@ -39,6 +39,7 @@ func main() {
 	userRepo := repository.NewUserRepo(db)
 	materialRepo := repository.NewMaterialRepo(db)
 	paramRepo := repository.NewParameterRepo(db)
+	materialParamRepo := repository.NewMaterialParameterRepo(db)
 
 	// Хэндлеры
 	authHandler := handler.NewAuthHandler(userRepo, jwtKey)
@@ -46,7 +47,7 @@ func main() {
 	adminHandler := handler.NewAdminHandler(materialRepo)
 	userHandler := handler.NewUserHandler(userRepo)
 	paramHandler := handler.NewParameterHandler(paramRepo)
-	calcHandler := handler.NewCalculationHandler()
+	calcHandler := handler.NewCalculationHandler(materialParamRepo, materialRepo)
 
 	// Middleware
 	authMiddleware := middleware.AuthMiddleware([]byte(jwtKey))
@@ -66,6 +67,9 @@ func main() {
 
 	// Validation (public)
 	mux.HandleFunc("POST /api/validate", calcHandler.Validate)
+
+	// Calculation (фейковый)
+	mux.HandleFunc("POST /api/calculate", calcHandler.Calculate)
 
 	// Admin Materials
 	mux.Handle("GET /api/admin/materials", authMiddleware(adminMiddleware(http.HandlerFunc(adminHandler.GetAllMaterials))))

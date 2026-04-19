@@ -17,3 +17,22 @@ type CalculationInput struct {
 	// Расчёт
 	Steps int `json:"steps"`
 }
+
+type Point struct {
+	X           float64 `json:"x"`
+	Temperature float64 `json:"temperature"`
+	Viscosity   float64 `json:"viscosity"`
+}
+
+type Metrics struct {
+	CalcTimeMs      int `json:"calc_time_ms"`
+	MemoryUsedBytes int `json:"memory_used_bytes"`
+}
+
+type CalculationResult struct {
+	Productivity float64 `json:"productivity"`
+	Temperature  float64 `json:"temperature"`
+	Viscosity    float64 `json:"viscosity"`
+	Profile      []Point `json:"profile"`
+	Metrics      Metrics `json:"metrics"`
+}
