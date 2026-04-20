@@ -89,6 +89,24 @@ a {
   font-size: 20px;
 }
 
+.page-section {
+  width: min(960px, 100%);
+  padding: 48px 32px;
+}
+
+.page-section h1 {
+  margin: 0 0 16px;
+  font-size: 40px;
+  line-height: 1.15;
+}
+
+.page-section p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 20px;
+}
+
 @media (max-width: 640px) {
   .site-header {
     padding: 0 20px;
@@ -103,6 +121,18 @@ a {
   }
 
   .hero__text {
+    font-size: 18px;
+  }
+
+  .page-section {
+    padding: 40px 20px;
+  }
+
+  .page-section h1 {
+    font-size: 32px;
+  }
+
+  .page-section p {
     font-size: 18px;
   }
 }

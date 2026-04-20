@@ -84,6 +84,18 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "login", PageData{
+		Title: "Вход - FlowModel",
+	})
+}
+
+func (h *Handler) Admin(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "admin", PageData{
+		Title: "Админ-панель - FlowModel",
+	})
+}
+
 func (h *Handler) render(w http.ResponseWriter, page string, data PageData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
