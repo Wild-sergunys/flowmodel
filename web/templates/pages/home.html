@@ -1,11 +1,152 @@
 {{ define "content" }}
-<section class="hero" aria-labelledby="page-title">
-  <div class="hero__content">
-    <p class="hero__eyebrow">Основная страница</p>
-    <h1 id="page-title">FlowModel</h1>
-    <p class="hero__text">
-      Здесь будет основная часть приложения: ввод данных, запуск расчета, результаты и графики.
-    </p>
+<section class="researcher" aria-labelledby="page-title">
+  <header class="researcher__header">
+    <div>
+      <p class="section-label">Расчетная среда исследователя</p>
+      <h1 id="page-title">Моделирование течения материала в канале</h1>
+      <p>
+        Последовательный ввод параметров канала, материала, режима переработки и метода решения.
+      </p>
+    </div>
+  </header>
+
+  <div class="wizard" data-researcher-app>
+    <ol class="wizard__steps" aria-label="Этапы расчета">
+      <li class="wizard__step is-active" data-step-indicator="0">Геометрия</li>
+      <li class="wizard__step" data-step-indicator="1">Материал</li>
+      <li class="wizard__step" data-step-indicator="2">Режим</li>
+      <li class="wizard__step" data-step-indicator="3">Метод</li>
+      <li class="wizard__step" data-step-indicator="4">Результат</li>
+    </ol>
+
+    <form class="wizard__body" data-calculation-form>
+      <section class="wizard__panel is-active" data-step-panel="0" aria-labelledby="geometry-title">
+        <div class="panel-heading">
+          <p class="section-label">Шаг 1</p>
+          <h2 id="geometry-title">Геометрические параметры канала</h2>
+        </div>
+        <div class="field-grid">
+          <label class="field">
+            <span>W, м</span>
+            <input name="w" type="number" min="0.001" max="10" step="0.001" value="0.25" required>
+          </label>
+          <label class="field">
+            <span>H, м</span>
+            <input name="h" type="number" min="0.001" max="1" step="0.001" value="0.01" required>
+          </label>
+          <label class="field">
+            <span>L, м</span>
+            <input name="l" type="number" min="0.01" max="100" step="0.01" value="9.5" required>
+          </label>
+        </div>
+      </section>
+
+      <section class="wizard__panel" data-step-panel="1" aria-labelledby="material-title">
+        <div class="panel-heading">
+          <p class="section-label">Шаг 2</p>
+          <h2 id="material-title">Тип перерабатываемого материала</h2>
+        </div>
+        <label class="field field--wide">
+          <span>Материал</span>
+          <select name="material_id" data-material-select required>
+            <option value="">Загрузка справочника материалов...</option>
+          </select>
+        </label>
+        <p class="form-note" data-material-status></p>
+      </section>
+
+      <section class="wizard__panel" data-step-panel="2" aria-labelledby="mode-title">
+        <div class="panel-heading">
+          <p class="section-label">Шаг 3</p>
+          <h2 id="mode-title">Режимные параметры</h2>
+        </div>
+        <div class="field-grid">
+          <label class="field">
+            <span>V<sub>u</sub>, м/с</span>
+            <input name="vu" type="number" min="0" max="100" step="0.01" value="1.5" required>
+          </label>
+          <label class="field">
+            <span>T<sub>u</sub>, °C</span>
+            <input name="tu" type="number" min="0" max="500" step="0.1" value="150" required>
+          </label>
+        </div>
+      </section>
+
+      <section class="wizard__panel" data-step-panel="3" aria-labelledby="method-title">
+        <div class="panel-heading">
+          <p class="section-label">Шаг 4</p>
+          <h2 id="method-title">Параметры метода решения</h2>
+        </div>
+        <div class="field-grid">
+          <label class="field">
+            <span>T<sub>0</sub>, °C</span>
+            <input name="t0" type="number" min="0" max="500" step="0.1" value="145" required>
+          </label>
+          <label class="field">
+            <span>Количество шагов</span>
+            <input name="steps" type="number" min="10" max="100000" step="1" value="1000" required>
+          </label>
+        </div>
+      </section>
+
+      <section class="wizard__panel" data-step-panel="4" aria-labelledby="result-title">
+        <div class="panel-heading">
+          <p class="section-label">Шаг 5</p>
+          <h2 id="result-title">Результаты расчета</h2>
+        </div>
+
+        <div class="result-summary" data-result-summary hidden>
+          <article class="metric">
+            <span>Q</span>
+            <strong data-result-productivity>--</strong>
+            <small>м³/с</small>
+          </article>
+          <article class="metric">
+            <span>T<sub>p</sub></span>
+            <strong data-result-temperature>--</strong>
+            <small>°C</small>
+          </article>
+          <article class="metric">
+            <span>η<sub>p</sub></span>
+            <strong data-result-viscosity>--</strong>
+            <small>Па·с</small>
+          </article>
+        </div>
+
+        <div class="charts" data-chart-area hidden>
+          <article class="chart">
+            <header>
+              <h3>Распределение температуры по длине канала</h3>
+              <span>T(x), °C</span>
+            </header>
+            <svg data-temperature-chart viewBox="0 0 640 320" role="img" aria-label="График температуры"></svg>
+          </article>
+          <article class="chart">
+            <header>
+              <h3>Распределение вязкости по длине канала</h3>
+              <span>η(x), Па·с</span>
+            </header>
+            <svg data-viscosity-chart viewBox="0 0 640 320" role="img" aria-label="График вязкости"></svg>
+          </article>
+        </div>
+
+        <div class="report-panel" data-report-panel hidden>
+          <p data-report-status>Отчет не сформирован.</p>
+          <div class="button-row">
+            <button class="button" type="button" data-generate-report>Сформировать отчет</button>
+            <button class="button button--secondary" type="button" data-download-report disabled>Скачать отчет</button>
+          </div>
+        </div>
+      </section>
+
+      <p class="form-message" data-form-message role="status" aria-live="polite"></p>
+
+      <div class="wizard__actions">
+        <button class="button button--secondary" type="button" data-prev-step disabled>Назад</button>
+        <button class="button" type="button" data-next-step>Далее</button>
+        <button class="button" type="submit" data-submit-calculation hidden>Выполнить расчет</button>
+      </div>
+    </form>
   </div>
 </section>
 {{ end }}
