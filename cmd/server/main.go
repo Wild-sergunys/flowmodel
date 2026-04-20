@@ -65,6 +65,8 @@ func main() {
 
 	// Frontend
 	mux.Handle("GET /static/", webHandler.Static())
+	mux.HandleFunc("GET /login", webHandler.Login)
+	mux.HandleFunc("GET /admin", webHandler.Admin)
 	mux.HandleFunc("GET /", webHandler.Home)
 
 	// Auth
