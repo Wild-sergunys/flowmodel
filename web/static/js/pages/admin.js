@@ -1,4 +1,8 @@
 (function() {
+  let cachedMaterials = [];
+  let cachedParameters = [];
+  let materialParameterValues = {};
+
   async function checkAdmin() {
     const token = sessionStorage.getItem('flowmodel_token');
     if (!token) { window.location.href = '/login'; return false; }
@@ -39,14 +43,117 @@
     el.style.color = isError ? 'var(--pink)' : 'var(--text)';
   }
 
+  function getSelectedMaterialId() {
+    const select = document.getElementById('material-parameter-material');
+    return select?.value ? Number(select.value) : null;
+  }
+
+  function normalizeMaterialParameterValues(data) {
+    if (!data) return {};
+
+    if (Array.isArray(data)) {
+      return data.reduce((acc, item) => {
+        const code = item.code || item.parameter_code || item.parameter?.code;
+        if (!code) return acc;
+        acc[code] = item.value_float ?? item.valueFloat ?? item.value_string ?? item.valueString ?? item.value;
+        return acc;
+      }, {});
+    }
+
+    if (Array.isArray(data.values)) return normalizeMaterialParameterValues(data.values);
+    if (Array.isArray(data.parameters)) return normalizeMaterialParameterValues(data.parameters);
+
+    return Object.keys(data).reduce((acc, key) => {
+      if (typeof data[key] !== 'object' || data[key] === null) {
+        acc[key] = data[key];
+      }
+      return acc;
+    }, {});
+  }
+
+  function populateMaterialParameterSelect() {
+    const select = document.getElementById('material-parameter-material');
+    if (!select) return;
+
+    const previous = select.value;
+    select.innerHTML = cachedMaterials.map(m => (
+      `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`
+    )).join('');
+
+    if (previous && cachedMaterials.some(m => String(m.id) === previous)) {
+      select.value = previous;
+    }
+  }
+
+  function renderMaterialParameterFields() {
+    const tbody = document.querySelector('#material-parameters-table tbody');
+    if (!tbody) return;
+
+    if (!cachedMaterials.length) {
+      tbody.innerHTML = '<tr><td colspan="6">Сначала добавьте материал</td></tr>';
+      return;
+    }
+    if (!cachedParameters.length) {
+      tbody.innerHTML = '<tr><td colspan="6">Сначала добавьте параметры</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = cachedParameters.map(p => {
+      const hasValue = Object.prototype.hasOwnProperty.call(materialParameterValues, p.code);
+      const value = hasValue ? materialParameterValues[p.code] : '';
+      const inputType = p.data_type === 'string' ? 'text' : 'number';
+      const step = p.data_type === 'int' ? '1' : 'any';
+
+      return `
+        <tr>
+          <td><input type="checkbox" name="bind" value="${escapeHtml(p.id)}" data-code="${escapeHtml(p.code)}" ${hasValue ? 'checked' : ''}></td>
+          <td>${escapeHtml(p.code)}</td>
+          <td>${escapeHtml(p.name)}</td>
+          <td>${escapeHtml(p.data_type)}</td>
+          <td>${escapeHtml(p.unit || '-')}</td>
+          <td><input type="${inputType}" step="${step}" name="value_${escapeHtml(p.id)}" value="${escapeHtml(value ?? '')}"></td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function loadMaterialParameterValues() {
+    const materialId = getSelectedMaterialId();
+    materialParameterValues = {};
+    showFormMessage('material-parameters-message', '');
+
+    if (!materialId) {
+      renderMaterialParameterFields();
+      return;
+    }
+
+    try {
+      const data = await FlowModelAPI.client.admin.materials.parameters.list(materialId);
+      materialParameterValues = normalizeMaterialParameterValues(data);
+    } catch (e) {
+      console.error(e);
+      showFormMessage(
+        'material-parameters-message',
+        e.status === 404
+          ? 'Эндпоинт параметров материала недоступен или материал не найден'
+          : (e.message || 'Не удалось загрузить параметры материала')
+      );
+    }
+
+    renderMaterialParameterFields();
+  }
+
   async function loadMaterials() {
     const tbody = getTbody('materials-table');
     try {
       const materials = await FlowModelAPI.client.admin.materials.list();
+      cachedMaterials = materials;
       tbody.innerHTML = materials.map(m => `
         <tr><td>${escapeHtml(m.id)}</td><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.description || '-')}</td>
         <td><button class="btn btn-small" onclick="deleteMaterial(${m.id})" title="Удалить">🗑️</button></td></tr>
       `).join('');
+      populateMaterialParameterSelect();
+      await loadMaterialParameterValues();
     } catch (e) { console.error(e); }
   }
 
@@ -54,10 +161,12 @@
     const tbody = getTbody('parameters-table');
     try {
       const params = await FlowModelAPI.client.admin.parameters.list();
+      cachedParameters = params;
       tbody.innerHTML = params.map(p => `
         <tr><td>${escapeHtml(p.id)}</td><td>${escapeHtml(p.code)}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.unit || '-')}</td><td>${escapeHtml(p.data_type)}</td><td>${escapeHtml(p.category)}</td>
         <td><button class="btn btn-small" onclick="deleteParameter(${p.id})" title="Удалить">🗑️</button></td></tr>
       `).join('');
+      renderMaterialParameterFields();
     } catch (e) { console.error(e); }
   }
 
@@ -145,6 +254,75 @@
     });
   }
 
+  const materialParameterSelect = document.getElementById('material-parameter-material');
+  if (materialParameterSelect) {
+    materialParameterSelect.addEventListener('change', loadMaterialParameterValues);
+  }
+
+  const reloadMaterialParametersBtn = document.getElementById('reload-material-parameters');
+  if (reloadMaterialParametersBtn) {
+    reloadMaterialParametersBtn.addEventListener('click', loadMaterialParameterValues);
+  }
+
+  const materialParametersForm = document.getElementById('material-parameters-form');
+  if (materialParametersForm) {
+    materialParametersForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      showFormMessage('material-parameters-message', '');
+
+      const materialId = getSelectedMaterialId();
+      if (!materialId) {
+        showFormMessage('material-parameters-message', 'Выберите материал');
+        return;
+      }
+
+      const checked = Array.from(materialParametersForm.querySelectorAll('input[name="bind"]:checked'));
+      const parameters = checked.map(checkbox => {
+        const parameterId = Number(checkbox.value);
+        const parameter = cachedParameters.find(p => Number(p.id) === parameterId);
+        const input = materialParametersForm.querySelector(`[name="value_${parameterId}"]`);
+        const rawValue = String(input?.value ?? '').trim();
+        const isString = parameter?.data_type === 'string';
+
+        return {
+          parameter_id: parameterId,
+          code: parameter?.code || checkbox.dataset.code,
+          value: isString ? rawValue : Number(rawValue),
+          value_float: isString ? null : Number(rawValue),
+          value_string: isString ? rawValue : null,
+        };
+      });
+
+      const invalid = parameters.find(p => p.value === '' || (typeof p.value === 'number' && !Number.isFinite(p.value)));
+      if (invalid) {
+        showFormMessage('material-parameters-message', 'Заполните значения для всех привязанных параметров');
+        return;
+      }
+
+      const values = parameters.reduce((acc, p) => {
+        acc[p.code] = p.value;
+        return acc;
+      }, {});
+
+      try {
+        await FlowModelAPI.client.admin.materials.parameters.update(materialId, {
+          parameters,
+          values,
+        });
+        showFormMessage('material-parameters-message', 'Параметры материала сохранены', false);
+        await loadMaterialParameterValues();
+      } catch (e) {
+        console.error(e);
+        showFormMessage(
+          'material-parameters-message',
+          e.status === 404
+            ? 'Эндпоинт сохранения параметров материала недоступен'
+            : (e.message || 'Не удалось сохранить параметры материала')
+        );
+      }
+    });
+  }
+
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -157,5 +335,10 @@
     });
   });
 
-  (async () => { if (await checkAdmin()) loadMaterials(); })();
+  (async () => {
+    if (await checkAdmin()) {
+      await loadParameters();
+      await loadMaterials();
+    }
+  })();
 })();

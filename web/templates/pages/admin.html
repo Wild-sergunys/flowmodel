@@ -30,6 +30,33 @@
     </div>
 
     <div class="card">
+      <h2 style="margin-top: 0;">Параметры материала</h2>
+      <div style="display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: end; margin-bottom: 20px;">
+        <div class="form-group">
+          <label>Материал</label>
+          <select id="material-parameter-material"></select>
+        </div>
+        <div class="form-group">
+          <button type="button" class="btn btn-small" id="reload-material-parameters">Обновить</button>
+        </div>
+      </div>
+      <form id="material-parameters-form">
+        <div class="table-wrapper">
+          <table id="material-parameters-table">
+            <thead>
+              <tr><th>Привязать</th><th>Код</th><th>Название</th><th>Тип</th><th>Ед. изм.</th><th>Значение</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+          <button type="submit" class="btn btn-primary">Сохранить значения</button>
+        </div>
+        <div id="material-parameters-message" style="color: var(--pink); margin-top: 12px;"></div>
+      </form>
+    </div>
+
+    <div class="card">
       <h2 style="margin-top: 0;">Материалы</h2>
       <div class="table-wrapper">
         <table id="materials-table">
