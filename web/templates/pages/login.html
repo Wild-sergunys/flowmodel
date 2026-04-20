@@ -1,6 +1,27 @@
 {{ define "content" }}
-<section class="page-section" aria-labelledby="page-title">
-  <h1 id="page-title">Страница входа</h1>
-  <p>Здесь будет форма авторизации пользователя.</p>
+<section class="auth-page" aria-labelledby="page-title" data-login-page>
+  <div class="auth-panel">
+    <header class="auth-panel__header">
+      <p class="section-label">Авторизация</p>
+      <h1 id="page-title">Вход в систему</h1>
+      <p>Введите учетные данные для доступа к расчетной среде FlowModel.</p>
+    </header>
+
+    <form class="auth-form" data-login-form>
+      <label class="field">
+        <span>Логин</span>
+        <input name="login" type="text" autocomplete="username" minlength="3" maxlength="50" required>
+      </label>
+
+      <label class="field">
+        <span>Пароль</span>
+        <input name="password" type="password" autocomplete="current-password" minlength="6" maxlength="100" required>
+      </label>
+
+      <p class="form-message" data-login-message role="status" aria-live="polite"></p>
+
+      <button class="button auth-form__submit" type="submit" data-login-submit>Войти</button>
+    </form>
+  </div>
 </section>
 {{ end }}

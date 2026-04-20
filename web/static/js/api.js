@@ -2,6 +2,7 @@
   "use strict";
 
   const DEFAULT_CREDENTIALS = "same-origin";
+  const AUTH_STORAGE_KEY = "flowmodel:auth";
 
   class ApiError extends Error {
     constructor(message, response, data) {
@@ -68,6 +69,39 @@
 
     const match = disposition.match(/filename="?([^"]+)"?/i);
     return match ? match[1] : "";
+  }
+
+  function readAuthState() {
+    try {
+      const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeAuthState(authState) {
+    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authState));
+  }
+
+  function clearAuthState() {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+
+  function getToken() {
+    const authState = readAuthState();
+    return authState && authState.token ? authState.token : "";
+  }
+
+  function saveLoginResponse(data) {
+    if (!data || typeof data.token !== "string" || !data.token) {
+      return;
+    }
+
+    writeAuthState({
+      token: data.token,
+      role: data.role || "",
+    });
   }
 
   async function parseResponse(response, responseType) {
@@ -144,14 +178,21 @@
           headers: undefined,
           body: undefined,
           responseType: "json",
+          auth: true,
         },
         options || {},
       );
 
+      const headers = buildHeaders(requestOptions.headers, requestOptions.body);
+      const token = getToken();
+      if (requestOptions.auth && token && !headers.has("Authorization")) {
+        headers.set("Authorization", "Bearer " + token);
+      }
+
       const fetchOptions = {
         method: requestOptions.method,
         credentials: settings.credentials,
-        headers: buildHeaders(requestOptions.headers, requestOptions.body),
+        headers: headers,
       };
 
       if (requestOptions.body !== undefined) {
@@ -164,6 +205,7 @@
       if (!response.ok) {
         const error = createError(response, data);
         if (error instanceof AuthError) {
+          clearAuthState();
           dispatchAuthEvent("flowmodel:unauthorized", error);
           if (typeof settings.onUnauthorized === "function") {
             settings.onUnauthorized(error);
@@ -211,16 +253,34 @@
 
       auth: {
         register: function (payload) {
-          return post("/api/auth/register", payload);
+          return post("/api/auth/register", payload, { auth: false });
         },
-        login: function (payload) {
-          return post("/api/auth/login", payload);
+        login: async function (payload) {
+          const data = await post("/api/auth/login", payload, { auth: false });
+          saveLoginResponse(data);
+          return data;
         },
-        logout: function () {
-          return post("/api/auth/logout");
+        logout: async function () {
+          try {
+            return await post("/api/auth/logout");
+          } finally {
+            clearAuthState();
+          }
         },
         me: function () {
           return get("/api/auth/me");
+        },
+        getState: function () {
+          return readAuthState();
+        },
+        getToken: function () {
+          return getToken();
+        },
+        isAuthenticated: function () {
+          return Boolean(getToken());
+        },
+        clear: function () {
+          clearAuthState();
         },
       },
 

@@ -10,6 +10,62 @@ window.addEventListener("flowmodel:unauthorized", function () {
 (function () {
   "use strict";
 
+  const page = document.querySelector("[data-login-page]");
+  if (!page || !window.FlowModelAPI) {
+    return;
+  }
+
+  const api = window.FlowModelAPI.client;
+  const form = page.querySelector("[data-login-form]");
+  const message = page.querySelector("[data-login-message]");
+  const submitButton = page.querySelector("[data-login-submit]");
+
+  function setMessage(text, type) {
+    message.textContent = text || "";
+    message.dataset.type = type || "";
+  }
+
+  function getReturnPath() {
+    const savedPath = window.sessionStorage.getItem("flowmodel:returnTo");
+    if (!savedPath || savedPath === "/login") {
+      return "/";
+    }
+
+    return savedPath;
+  }
+
+  form.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    setMessage("");
+
+    if (!form.reportValidity()) {
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Вход...";
+
+    try {
+      await api.auth.login({
+        login: form.elements.login.value.trim(),
+        password: form.elements.password.value,
+      });
+
+      const returnPath = getReturnPath();
+      window.sessionStorage.removeItem("flowmodel:returnTo");
+      window.location.assign(returnPath);
+    } catch (error) {
+      setMessage(error.message || "Не удалось выполнить вход.", "error");
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "Войти";
+    }
+  });
+})();
+
+(function () {
+  "use strict";
+
   const app = document.querySelector("[data-researcher-app]");
   if (!app || !window.FlowModelAPI) {
     return;

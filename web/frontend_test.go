@@ -44,7 +44,7 @@ func TestLoginPage(t *testing.T) {
 	}
 
 	body := response.Body.String()
-	if !strings.Contains(body, "Страница входа") {
+	if !strings.Contains(body, "Вход в систему") {
 		t.Fatalf("login page does not contain heading")
 	}
 }
