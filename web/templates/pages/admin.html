@@ -10,6 +10,26 @@
 
   <div id="tab-materials" class="tab-content">
     <div class="card">
+      <h2 style="margin-top: 0;">Добавить материал</h2>
+      <form id="material-form">
+        <div style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 20px; align-items: end;">
+          <div class="form-group">
+            <label>Название</label>
+            <input type="text" name="name" maxlength="255" required>
+          </div>
+          <div class="form-group">
+            <label>Описание</label>
+            <input type="text" name="description" maxlength="1000">
+          </div>
+          <div class="form-group">
+            <button type="submit" class="btn btn-primary">Добавить</button>
+          </div>
+        </div>
+        <div id="material-form-message" style="color: var(--pink);"></div>
+      </form>
+    </div>
+
+    <div class="card">
       <h2 style="margin-top: 0;">Материалы</h2>
       <div class="table-wrapper">
         <table id="materials-table">
@@ -23,6 +43,50 @@
   </div>
 
   <div id="tab-parameters" class="tab-content" style="display: none;">
+    <div class="card">
+      <h2 style="margin-top: 0;">Добавить параметр</h2>
+      <form id="parameter-form">
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+          <div class="form-group">
+            <label>Код</label>
+            <input type="text" name="code" maxlength="50" pattern="[a-z0-9_]+" required>
+          </div>
+          <div class="form-group">
+            <label>Название</label>
+            <input type="text" name="name" maxlength="255" required>
+          </div>
+          <div class="form-group">
+            <label>Ед. изм.</label>
+            <input type="text" name="unit" maxlength="50">
+          </div>
+          <div class="form-group">
+            <label>Тип</label>
+            <select name="data_type" required>
+              <option value="float">float</option>
+              <option value="int">int</option>
+              <option value="string">string</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Категория</label>
+            <select name="category" required>
+              <option value="material_property">material_property</option>
+              <option value="empirical_coefficient">empirical_coefficient</option>
+              <option value="process_parameter">process_parameter</option>
+            </select>
+          </div>
+          <div class="form-group" style="display: flex; align-items: end;">
+            <button type="submit" class="btn btn-primary btn-block">Добавить</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Описание</label>
+          <textarea name="description" maxlength="1000" rows="3"></textarea>
+        </div>
+        <div id="parameter-form-message" style="color: var(--pink);"></div>
+      </form>
+    </div>
+
     <div class="card">
       <h2 style="margin-top: 0;">Параметры</h2>
       <div class="table-wrapper">
