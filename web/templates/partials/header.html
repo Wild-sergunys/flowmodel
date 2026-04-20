@@ -1,10 +1,43 @@
 {{ define "header" }}
-<header class="site-header">
-  <a class="site-header__brand" href="/">FlowModel</a>
-  <nav class="site-header__nav" aria-label="Основная навигация">
-    <a href="/">Главная</a>
-    <a href="/login">Вход</a>
-    <a href="/admin">Админ</a>
+<header class="header">
+  <a class="logo" href="/">FlowModel</a>
+  <nav class="nav" aria-label="Основная навигация">
+    <a href="/">Расчёт</a>
+    <a href="/cabinet" id="cabinet-link" style="display: none;">Кабинет</a>
+    <a href="/admin" id="admin-link" style="display: none;">Админ</a>
+    <a href="#" id="logout-btn" style="display: none;">Выход</a>
+    <a href="/login" id="login-link">Вход</a>
   </nav>
 </header>
+<script>
+(function() {
+  function updateNav() {
+    const token = sessionStorage.getItem('flowmodel_token');
+    const role = sessionStorage.getItem('flowmodel_role');
+    
+    const loginLink = document.getElementById('login-link');
+    const logoutBtn = document.getElementById('logout-btn');
+    const cabinetLink = document.getElementById('cabinet-link');
+    const adminLink = document.getElementById('admin-link');
+    
+    if (loginLink) loginLink.style.display = token ? 'none' : 'inline';
+    if (logoutBtn) logoutBtn.style.display = token ? 'inline' : 'none';
+    if (cabinetLink) cabinetLink.style.display = token ? 'inline' : 'none';
+    if (adminLink) adminLink.style.display = (token && role === 'admin') ? 'inline' : 'none';
+  }
+  
+  document.addEventListener('DOMContentLoaded', updateNav);
+  window.addEventListener('storage', updateNav);
+  
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try { await FlowModelAPI.client.auth.logout(); } catch (e) {}
+      sessionStorage.clear();
+      window.location.href = '/login';
+    });
+  }
+})();
+</script>
 {{ end }}

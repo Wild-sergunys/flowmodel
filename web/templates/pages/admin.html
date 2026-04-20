@@ -1,6 +1,55 @@
 {{ define "content" }}
-<section class="page-section" aria-labelledby="page-title">
-  <h1 id="page-title">Страница администратора</h1>
-  <p>Здесь будет административная панель для управления данными приложения.</p>
-</section>
+<div class="container">
+  <h1>Админ-панель</h1>
+
+  <div style="display: flex; gap: 20px; margin-bottom: 30px; border-bottom: 3px solid #1a1a1a; padding-bottom: 10px;">
+    <button class="btn btn-small tab-btn active" data-tab="materials">Материалы</button>
+    <button class="btn btn-small tab-btn" data-tab="parameters">Параметры</button>
+    <button class="btn btn-small tab-btn" data-tab="users">Пользователи</button>
+  </div>
+
+  <div id="tab-materials" class="tab-content">
+    <div class="card">
+      <h2 style="margin-top: 0;">Материалы</h2>
+      <div class="table-wrapper">
+        <table id="materials-table">
+          <thead>
+            <tr><th>ID</th><th>Название</th><th>Описание</th><th>Действия</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-parameters" class="tab-content" style="display: none;">
+    <div class="card">
+      <h2 style="margin-top: 0;">Параметры</h2>
+      <div class="table-wrapper">
+        <table id="parameters-table">
+          <thead>
+            <tr><th>ID</th><th>Код</th><th>Название</th><th>Ед. изм.</th><th>Тип</th><th>Категория</th><th>Действия</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-users" class="tab-content" style="display: none;">
+    <div class="card">
+      <h2 style="margin-top: 0;">Пользователи</h2>
+      <div class="table-wrapper">
+        <table id="users-table">
+          <thead>
+            <tr><th>ID</th><th>Логин</th><th>Роль</th><th>Создан</th><th>Действия</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/pages/admin.js" defer></script>
 {{ end }}

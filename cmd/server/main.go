@@ -68,6 +68,7 @@ func main() {
 	mux.HandleFunc("GET /login", webHandler.Login)
 	mux.HandleFunc("GET /admin", webHandler.Admin)
 	mux.HandleFunc("GET /", webHandler.Home)
+	mux.HandleFunc("GET /cabinet", webHandler.Cabinet)
 
 	// Auth
 	mux.HandleFunc("POST /api/auth/register", authHandler.Register)

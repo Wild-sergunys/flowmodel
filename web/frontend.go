@@ -70,7 +70,17 @@ func parsePages() (map[string]*template.Template, error) {
 }
 
 func (h *Handler) Static() http.Handler {
-	return http.StripPrefix("/static/", h.static)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if strings.HasSuffix(path, ".js") {
+			w.Header().Set("Content-Type", "application/javascript")
+		} else if strings.HasSuffix(path, ".css") {
+			w.Header().Set("Content-Type", "text/css")
+		} else if strings.HasSuffix(path, ".html") {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		}
+		http.StripPrefix("/static/", h.static).ServeHTTP(w, r)
+	})
 }
 
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
@@ -108,4 +118,8 @@ func (h *Handler) render(w http.ResponseWriter, page string, data PageData) {
 	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		http.Error(w, "template render error", http.StatusInternalServerError)
 	}
+}
+
+func (h *Handler) Cabinet(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "cabinet", PageData{Title: "Кабинет - FlowModel"})
 }

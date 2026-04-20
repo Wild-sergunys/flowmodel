@@ -1,0 +1,27 @@
+{{ define "content" }}
+<div class="container">
+  <h1>Кабинет</h1>
+  
+  <div class="card">
+    <h2 style="margin-top: 0;">История расчётов</h2>
+    <div class="table-wrapper">
+      <table id="history-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Дата</th>
+            <th>Материал</th>
+            <th>Производительность</th>
+            <th>Температура</th>
+            <th>Вязкость</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/pages/cabinet.js" defer></script>
+{{ end }}
