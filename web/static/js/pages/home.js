@@ -36,7 +36,7 @@
         labels: profile.map(p => p.x.toFixed(2)),
         datasets: [
           { label: 'Температура (°C)', data: profile.map(p => p.temperature), borderColor: '#ff3c8e', borderWidth: 3, pointRadius: 0, tension: 0.3, yAxisID: 'y' },
-          { label: 'Вязкость (Па·с)', data: profile.map(p => p.viscosity), borderColor: '#c8ff00', borderWidth: 3, pointRadius: 0, tension: 0.3, yAxisID: 'y1' }
+          { label: 'η (Па·с)', data: profile.map(p => p.viscosity), borderColor: '#c8ff00', borderWidth: 3, pointRadius: 0, tension: 0.3, yAxisID: 'y1' }
         ]
       },
       options: {
@@ -45,7 +45,7 @@
         scales: {
           x: { title: { display: true, text: 'Длина (м)' }, grid: { color: '#1a1a1a' } },
           y: { type: 'linear', position: 'left', title: { display: true, text: 'Температура (°C)' }, grid: { color: '#1a1a1a' } },
-          y1: { type: 'linear', position: 'right', title: { display: true, text: 'Вязкость (Па·с)' }, grid: { drawOnChartArea: false }, reverse: true }
+          y1: { type: 'linear', position: 'right', title: { display: true, text: 'η (Па·с)' }, grid: { drawOnChartArea: false }, reverse: false }
         }
       }
     });
