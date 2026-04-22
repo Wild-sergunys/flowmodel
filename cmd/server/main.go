@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -112,8 +116,35 @@ func main() {
 	mux.Handle("GET /api/results/{id}/report", authMiddleware(http.HandlerFunc(resultsHandler.GetReport)))
 	mux.Handle("GET /api/results/{id}/download", authMiddleware(http.HandlerFunc(resultsHandler.Download)))
 
-	log.Printf("Сервер запущен на http://localhost:%s", cfg.ServerPort)
-	if err := http.ListenAndServe(":"+cfg.ServerPort, mux); err != nil {
-		log.Fatal("Ошибка запуска сервера:", err)
+	// Запуск сервера с graceful shutdown
+	srv := &http.Server{
+		Addr:         ":" + cfg.ServerPort,
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		log.Printf("Сервер запущен на http://localhost:%s", cfg.ServerPort)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("Ошибка запуска сервера:", err)
+		}
+	}()
+
+	<-stop
+	log.Println("Получен сигнал остановки (SIGTERM/SIGINT)")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	log.Println("Ожидание завершения активных запросов (до 10с)...")
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Println("Сервер завершён принудительно:", err)
+	} else {
+		log.Println("Все запросы завершены корректно")
 	}
 }
