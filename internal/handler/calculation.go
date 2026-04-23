@@ -133,12 +133,13 @@ func (h *CalculationHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 	inputJSON, _ := json.Marshal(input)
 	resultJSON, _ := json.Marshal(result)
 
-	// TODO: userID брать из JWT, пока заглушка = 1
-	userID := 1
+	// Берём userID из JWT (middleware уже проверил токен)
 	claims, ok := r.Context().Value(middleware.UserContextKey).(jwt.MapClaims)
-	if ok {
-		userID = int(claims["user_id"].(float64))
+	if !ok {
+		WriteError(w, http.StatusUnauthorized, "unauthorized", "Не авторизован", nil)
+		return
 	}
+	userID := int(claims["user_id"].(float64))
 
 	calc := &model.Calculation{
 		UserID:     userID,

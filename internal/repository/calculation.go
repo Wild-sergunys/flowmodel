@@ -11,6 +11,7 @@ type CalculationRepository interface {
 	Create(ctx context.Context, calc *model.Calculation) error
 	FindAll(ctx context.Context) ([]model.Calculation, error)
 	FindByID(ctx context.Context, id int) (*model.Calculation, error)
+	FindByUserID(ctx context.Context, userID int) ([]model.Calculation, error)
 }
 
 type CalculationRepo struct {
@@ -66,4 +67,27 @@ func (r *CalculationRepo) FindByID(ctx context.Context, id int) (*model.Calculat
 	default:
 		return &c, nil
 	}
+}
+
+func (r *CalculationRepo) FindByUserID(ctx context.Context, userID int) ([]model.Calculation, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, user_id, material_id, input_json, result_json, created_at 
+        FROM calculations 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calcs []model.Calculation
+	for rows.Next() {
+		var c model.Calculation
+		err := rows.Scan(&c.ID, &c.UserID, &c.MaterialID, &c.InputJSON, &c.ResultJSON, &c.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		calcs = append(calcs, c)
+	}
+	return calcs, nil
 }

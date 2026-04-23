@@ -95,7 +95,7 @@ func main() {
 	mux.HandleFunc("POST /api/validate", calcHandler.Validate)
 
 	// Calculation
-	mux.HandleFunc("POST /api/calculate", calcHandler.Calculate)
+	mux.Handle("POST /api/calculate", authMiddleware(http.HandlerFunc(calcHandler.Calculate)))
 
 	// Admin Materials
 	mux.Handle("GET /api/admin/materials", authMiddleware(adminMiddleware(http.HandlerFunc(adminHandler.GetAllMaterials))))
