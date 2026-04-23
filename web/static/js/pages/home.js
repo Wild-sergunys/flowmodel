@@ -19,6 +19,19 @@
     }
   }
 
+  function renderProfileTable(profile) {
+    const tbody = document.querySelector('#profile-table tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = profile.map(p => `
+      <tr>
+        <td>${p.x.toFixed(4)}</td>
+        <td>${p.temperature.toFixed(1)}</td>
+        <td>${p.viscosity.toFixed(1)}</td>
+      </tr>
+    `).join('');
+  }
+
   function render2DChart(profile) {
     const canvas = document.getElementById('chart2d');
     if (!canvas) return;
@@ -349,6 +362,7 @@
         document.getElementById('temperature').textContent = result.temperature.toFixed(1);
         document.getElementById('viscosity').textContent = result.viscosity.toFixed(1);
         resultsDiv.style.display = 'block';
+        renderProfileTable(result.profile);
         render2DChart(result.profile);
         render3DChart(result.profile, data);
       } catch (e) {
