@@ -36,7 +36,7 @@
         labels: profile.map(p => p.x.toFixed(2)),
         datasets: [
           { label: 'Температура (°C)', data: profile.map(p => p.temperature), borderColor: '#ff3c8e', borderWidth: 3, pointRadius: 0, tension: 0.3, yAxisID: 'y' },
-          { label: 'Вязкость (Па·с)', data: profile.map(p => p.viscosity), borderColor: '#c8ff00', borderWidth: 3, pointRadius: 0, tension: 0.3, yAxisID: 'y1' }
+          { label: 'η (Па·с)', data: profile.map(p => p.viscosity), borderColor: '#c8ff00', borderWidth: 3, pointRadius: 0, tension: 0.3, yAxisID: 'y1' }
         ]
       },
       options: {
@@ -45,13 +45,41 @@
         scales: {
           x: { title: { display: true, text: 'Длина (м)' }, grid: { color: '#1a1a1a' } },
           y: { type: 'linear', position: 'left', title: { display: true, text: 'Температура (°C)' }, grid: { color: '#1a1a1a' } },
-          y1: { type: 'linear', position: 'right', title: { display: true, text: 'Вязкость (Па·с)' }, grid: { drawOnChartArea: false }, reverse: true }
+          y1: { type: 'linear', position: 'right', title: { display: true, text: 'η (Па·с)' }, grid: { drawOnChartArea: false }, reverse: false }
         }
       }
     });
   }
 
-  function render3DChart(profile) {
+  function calculateProductivity(w, h, vu, eta0, eta) {
+    const safeEta = Number(eta) || 1;
+    return ((w * h * vu) / 2) * (eta0 / safeEta);
+  }
+
+  function interpolateViscosityByTemperature(profile, temperature) {
+    const points = profile
+      .filter(p => Number.isFinite(p.temperature) && Number.isFinite(p.viscosity))
+      .slice()
+      .sort((a, b) => a.temperature - b.temperature);
+
+    if (!points.length) return 1;
+    if (temperature <= points[0].temperature) return points[0].viscosity;
+    if (temperature >= points[points.length - 1].temperature) return points[points.length - 1].viscosity;
+
+    for (let i = 1; i < points.length; i++) {
+      const left = points[i - 1];
+      const right = points[i];
+      if (temperature <= right.temperature) {
+        const span = right.temperature - left.temperature || 1;
+        const ratio = (temperature - left.temperature) / span;
+        return left.viscosity + ratio * (right.viscosity - left.viscosity);
+      }
+    }
+
+    return points[points.length - 1].viscosity;
+  }
+
+  function render3DChart(profile, input) {
     const container = document.getElementById('chart3d');
     container.innerHTML = '';
     
@@ -62,8 +90,8 @@
     scene.background = new THREE.Color('#f2ede8');
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(2, 2.5, 3.5);
-    camera.lookAt(0.5, 0.5, 0.4);
+    camera.position.set(1.8, 1.8, 2.4);
+    camera.lookAt(0.5, 0.5, 0.5);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
@@ -76,7 +104,7 @@
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.8;
     controls.enableZoom = true;
-    controls.target.set(0.5, 0.5, 0.4);
+    controls.target.set(0.5, 0.5, 0.5);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -87,71 +115,94 @@
     scene.add(dirLight2);
 
     // Нормализация
-    const maxTemp = Math.max(...profile.map(p => p.temperature));
-    const minTemp = Math.min(...profile.map(p => p.temperature));
-    const maxVisc = Math.max(...profile.map(p => p.viscosity));
-    const minVisc = Math.min(...profile.map(p => p.viscosity));
-    
-    const points = profile.map(p => ({
-      temp: (p.temperature - minTemp) / (maxTemp - minTemp || 1),
-      length: p.x / 10,
-      visc: 1 - (p.viscosity - minVisc) / (maxVisc - minVisc || 1)  // Инвертировано!
-    }));
+    const w = Number(input.w) || 0;
+    const h = Number(input.h) || 0;
+    const baseVu = Math.max(Number(input.vu) || 0, 0.0001);
+    const baseTu = Number(input.tu) || 0;
+    const eta0 = Number(profile[0]?.viscosity) || 1;
 
-    // Три линии, начинающиеся из нуля по длине
-    const line1 = points.map(p => new THREE.Vector3(p.temp, p.length, 0));      // Длина от температуры
-    const line2 = points.map(p => new THREE.Vector3(p.temp, 0, p.visc));       // Вязкость от температуры
-    const line3 = points.map(p => new THREE.Vector3(0, p.length, p.visc));     // Вязкость от длины
+    const tempValues = profile.map(p => Number(p.temperature)).filter(Number.isFinite);
+    const profileMinTu = Math.min(...tempValues, baseTu);
+    const profileMaxTu = Math.max(...tempValues, baseTu);
+    const minTu = profileMinTu === profileMaxTu ? baseTu - 10 : profileMinTu;
+    const maxTu = profileMinTu === profileMaxTu ? baseTu + 10 : profileMaxTu;
+    const minVu = Math.max(baseVu * 0.5, 0.0001);
+    const maxVu = Math.max(baseVu * 1.5, minVu + 0.0001);
 
-    // Добавляем линии
-    addLine(line1, 0xff3c8e);
-    addLine(line2, 0xc8ff00);
-    addLine(line3, 0x3366cc);
+    const vuSteps = 24;
+    const tuSteps = 24;
+    const grid = [];
+    let minQ = Infinity;
+    let maxQ = -Infinity;
 
-    // Одно полотно-треугольник
-    const vertices = [];
-    const indices = [];
-    const n = points.length;
-    
-    for (let i = 0; i < n; i++) {
-      vertices.push(line1[i].x, line1[i].y, line1[i].z);
-      vertices.push(line2[i].x, line2[i].y, line2[i].z);
-      vertices.push(line3[i].x, line3[i].y, line3[i].z);
+    for (let i = 0; i < vuSteps; i++) {
+      const vu = minVu + (i / (vuSteps - 1)) * (maxVu - minVu);
+      const row = [];
+      for (let j = 0; j < tuSteps; j++) {
+        const tu = minTu + (j / (tuSteps - 1)) * (maxTu - minTu);
+        const eta = interpolateViscosityByTemperature(profile, tu);
+        const q = calculateProductivity(w, h, vu, eta0, eta);
+        row.push({ vu, tu, q });
+        minQ = Math.min(minQ, q);
+        maxQ = Math.max(maxQ, q);
+      }
+      grid.push(row);
     }
     
-    for (let i = 0; i < n - 1; i++) {
-      const base = i * 3;
-      indices.push(base, base + 1, base + 2);
-      indices.push(base, base + 3, base + 1);
-      indices.push(base + 1, base + 3, base + 4);
-      indices.push(base + 1, base + 4, base + 2);
-      indices.push(base + 2, base + 4, base + 5);
-      indices.push(base + 2, base + 5, base);
-      indices.push(base, base + 5, base + 3);
+    const vertices = [];
+    const colors = [];
+    const indices = [];
+
+    for (let i = 0; i < vuSteps; i++) {
+      for (let j = 0; j < tuSteps; j++) {
+        const point = grid[i][j];
+        const x = (point.vu - minVu) / (maxVu - minVu || 1);
+        const y = (point.tu - minTu) / (maxTu - minTu || 1);
+        const z = (point.q - minQ) / (maxQ - minQ || 1);
+        const color = new THREE.Color().setHSL(0.68 - z * 0.55, 0.85, 0.52);
+        vertices.push(x, y, z);
+        colors.push(color.r, color.g, color.b);
+      }
+    }
+
+    for (let i = 0; i < vuSteps - 1; i++) {
+      for (let j = 0; j < tuSteps - 1; j++) {
+        const a = i * tuSteps + j;
+        const b = (i + 1) * tuSteps + j;
+        const c = (i + 1) * tuSteps + j + 1;
+        const d = i * tuSteps + j + 1;
+        indices.push(a, b, d, b, c, d);
+      }
     }
     
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     geom.setIndex(indices);
     geom.computeVertexNormals();
     
     const mat = new THREE.MeshPhongMaterial({
-      color: 0xff6600,
+      vertexColors: true,
       transparent: true,
-      opacity: 0.45,
-      side: THREE.DoubleSide,
-      emissive: 0x331100
+      opacity: 0.82,
+      side: THREE.DoubleSide
     });
     
     const mesh = new THREE.Mesh(geom, mat);
     scene.add(mesh);
 
-    function addLine(points, color) {
-      const geom = new THREE.BufferGeometry().setFromPoints(points);
-      const mat = new THREE.LineBasicMaterial({ color: color });
-      const line = new THREE.Line(geom, mat);
-      scene.add(line);
-    }
+    const currentEta = interpolateViscosityByTemperature(profile, baseTu);
+    const currentQ = calculateProductivity(w, h, baseVu, eta0, currentEta);
+    const marker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.035, 24, 24),
+      new THREE.MeshPhongMaterial({ color: 0xff3c8e, emissive: 0x220011 })
+    );
+    marker.position.set(
+      (baseVu - minVu) / (maxVu - minVu || 1),
+      (baseTu - minTu) / (maxTu - minTu || 1),
+      (currentQ - minQ) / (maxQ - minQ || 1)
+    );
+    scene.add(marker);
 
     // Оси
     const axesHelper = new THREE.AxesHelper(1.5);
@@ -177,21 +228,21 @@
       scene.add(sprite);
     }
 
-    createLabel('Температура (°C)', '#ff3c8e', new THREE.Vector3(1.3, -0.1, -0.1), 18);
-    createLabel('Длина (м)', '#1a1a1a', new THREE.Vector3(-0.1, 1.3, -0.1), 18);
-    createLabel('Вязкость (Па·с)', '#c8ff00', new THREE.Vector3(-0.1, -0.1, 1.3), 18);
+    createLabel('Vu (m/s)', '#3366cc', new THREE.Vector3(1.3, -0.1, -0.1), 18);
+    createLabel('Tu (C)', '#ff3c8e', new THREE.Vector3(-0.1, 1.3, -0.1), 18);
+    createLabel('Q (m3/s)', '#c8ff00', new THREE.Vector3(-0.1, -0.1, 1.3), 18);
 
     [0, 0.25, 0.5, 0.75, 1.0].forEach(t => {
-      createLabel((minTemp + t * (maxTemp - minTemp)).toFixed(0) + '°C', '#ff3c8e', new THREE.Vector3(t, -0.12, -0.12), 12);
+      createLabel((minVu + t * (maxVu - minVu)).toFixed(2), '#3366cc', new THREE.Vector3(t, -0.12, -0.12), 12);
     });
 
     [0, 0.25, 0.5, 0.75, 1.0].forEach(t => {
-      createLabel((t * 10).toFixed(1) + 'м', '#1a1a1a', new THREE.Vector3(-0.15, t, -0.15), 12);
+      createLabel((minTu + t * (maxTu - minTu)).toFixed(0), '#ff3c8e', new THREE.Vector3(-0.15, t, -0.15), 12);
     });
 
     [0, 0.25, 0.5, 0.75, 1.0].forEach(t => {
-      const val = (maxVisc - t * (maxVisc - minVisc)).toFixed(0);
-      createLabel(val, '#c8ff00', new THREE.Vector3(-0.15, -0.15, t), 12);
+      const val = minQ + t * (maxQ - minQ);
+      createLabel(val.toExponential(2), '#c8ff00', new THREE.Vector3(-0.15, -0.15, t), 12);
     });
 
     function animate() {
@@ -229,12 +280,15 @@
 
       try {
         const result = await FlowModelAPI.client.calculation.calculate(data);
-        document.getElementById('productivity').textContent = result.productivity.toFixed(6);
+        const eta0 = Number(result.profile?.[0]?.viscosity) || 1;
+        const eta = Number(result.viscosity) || Number(result.profile?.[result.profile.length - 1]?.viscosity) || eta0;
+        const productivity = calculateProductivity(data.w, data.h, data.vu, eta0, eta);
+        document.getElementById('productivity').textContent = productivity.toFixed(6);
         document.getElementById('temperature').textContent = result.temperature.toFixed(1);
         document.getElementById('viscosity').textContent = result.viscosity.toFixed(1);
         resultsDiv.style.display = 'block';
         render2DChart(result.profile);
-        render3DChart(result.profile);
+        render3DChart(result.profile, data);
       } catch (e) {
         errorDiv.textContent = `Ошибка: ${e.message}`;
         if (e instanceof FlowModelAPI.AuthError) window.location.href = '/login';

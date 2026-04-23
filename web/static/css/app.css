@@ -239,7 +239,8 @@ tr:last-child td {
     padding: 20px;
     box-shadow: var(--shadow);
     margin-bottom: 30px;
-    overflow: visible;
+    overflow: hidden;
+    max-width: 100%;
 }
 
 .chart-container h3 {
@@ -252,6 +253,7 @@ tr:last-child td {
     height: 300px !important;
     max-width: 100%;
     max-height: 300px;
+    box-sizing: border-box;
 }
 
 #chart3d {
@@ -260,6 +262,12 @@ tr:last-child td {
     height: 400px !important;
     max-width: 100%;
     max-height: 400px;
+    overflow: hidden;
+}
+
+#chart3d canvas {
+    display: block;
+    max-width: 100%;
 }
 
 /* Подвал */
