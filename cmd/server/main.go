@@ -16,6 +16,7 @@ import (
 	"flowmodel/internal/handler"
 	"flowmodel/internal/middleware"
 	"flowmodel/internal/repository"
+	"flowmodel/internal/service"
 	"flowmodel/web"
 )
 
@@ -47,13 +48,17 @@ func main() {
 	materialParamRepo := repository.NewMaterialParameterRepo(db)
 	calcRepo := repository.NewCalculationRepo(db)
 
+	// Сервисы
+	authService := service.NewAuthService(userRepo, jwtKey)
+	calcService := service.NewCalculationService(materialParamRepo, materialRepo, calcRepo)
+
 	// Хэндлеры
-	authHandler := handler.NewAuthHandler(userRepo, jwtKey)
+	authHandler := handler.NewAuthHandler(authService)
 	materialHandler := handler.NewMaterialHandler(materialRepo)
 	adminHandler := handler.NewAdminHandler(materialRepo)
 	userHandler := handler.NewUserHandler(userRepo)
 	paramHandler := handler.NewParameterHandler(paramRepo)
-	calcHandler := handler.NewCalculationHandler(materialParamRepo, materialRepo, calcRepo)
+	calcHandler := handler.NewCalculationHandler(calcService)
 	resultsHandler := handler.NewResultsHandler(calcRepo)
 	webHandler, err := web.NewHandler()
 	if err != nil {

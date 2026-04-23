@@ -3,18 +3,15 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"time"
-
-	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 
 	"flowmodel/internal/middleware"
-	"flowmodel/internal/repository"
+	"flowmodel/internal/service"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type AuthHandler struct {
-	userRepo repository.UserRepository
-	jwtKey   []byte
+	authService *service.AuthService
 }
 
 type LoginRequest struct {
@@ -27,10 +24,9 @@ type LoginResponse struct {
 	Role  string `json:"role"`
 }
 
-func NewAuthHandler(userRepo repository.UserRepository, jwtKey string) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 	return &AuthHandler{
-		userRepo: userRepo,
-		jwtKey:   []byte(jwtKey),
+		authService: authService,
 	}
 }
 
@@ -52,17 +48,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userRepo.FindByLogin(r.Context(), req.Login)
+	user, token, err := h.authService.Login(r.Context(), req.Login, req.Password)
 	if err != nil {
+		if err == service.ErrInvalidCredentials {
+			WriteError(w, http.StatusUnauthorized, "invalid_credentials", "Неверный логин или пароль", nil)
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка сервера", nil)
-		return
-	}
-	if user == nil {
-		WriteError(w, http.StatusUnauthorized, "invalid_credentials", "Неверный логин или пароль", nil)
-		return
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		WriteError(w, http.StatusUnauthorized, "invalid_credentials", "Неверный логин или пароль", nil)
 		return
 	}
 
@@ -72,22 +64,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		loginRateLimiter.Reset(ip)
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"login":   user.Login,
-		"role":    user.Role,
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
-	})
-
-	tokenString, err := token.SignedString(h.jwtKey)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка создания токена", nil)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(LoginResponse{
-		Token: tokenString,
+		Token: token,
 		Role:  user.Role,
 	})
 }
@@ -105,7 +84,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := int(claims["user_id"].(float64))
-	user, err := h.userRepo.FindByID(r.Context(), userID)
+	user, err := h.authService.GetUser(r.Context(), userID)
 	if err != nil || user == nil {
 		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка сервера", nil)
 		return
