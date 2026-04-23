@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"strconv"
 
+	"flowmodel/internal/middleware"
 	"flowmodel/internal/model"
 	"flowmodel/internal/repository"
 
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -83,10 +85,22 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value(middleware.UserContextKey).(jwt.MapClaims)
+	if !ok {
+		WriteError(w, http.StatusUnauthorized, "unauthorized", "Не авторизован", nil)
+		return
+	}
+	currentUserID := int(claims["user_id"].(float64))
+
 	idStr := r.PathValue("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, "validation_error", "Неверный ID", nil)
+		return
+	}
+
+	if id == currentUserID {
+		WriteError(w, http.StatusForbidden, "forbidden", "Нельзя удалить самого себя", nil)
 		return
 	}
 

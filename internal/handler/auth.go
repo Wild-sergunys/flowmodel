@@ -9,18 +9,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"flowmodel/internal/middleware"
-	"flowmodel/internal/model"
 	"flowmodel/internal/repository"
 )
 
 type AuthHandler struct {
 	userRepo repository.UserRepository
 	jwtKey   []byte
-}
-
-type RegisterRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
 }
 
 type LoginRequest struct {
@@ -40,49 +34,10 @@ func NewAuthHandler(userRepo repository.UserRepository, jwtKey string) *AuthHand
 	}
 }
 
-func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req RegisterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		WriteError(w, http.StatusBadRequest, "validation_error", "Неверный формат запроса", nil)
-		return
-	}
+var loginRateLimiter *middleware.RateLimiter
 
-	if req.Login == "" || req.Password == "" {
-		WriteError(w, http.StatusBadRequest, "validation_error", "Логин и пароль обязательны", nil)
-		return
-	}
-
-	existing, err := h.userRepo.FindByLogin(r.Context(), req.Login)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка сервера", nil)
-		return
-	}
-	if existing != nil {
-		WriteError(w, http.StatusBadRequest, "conflict", "Пользователь уже существует", nil)
-		return
-	}
-
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка хэширования", nil)
-		return
-	}
-
-	// По умолчанию создаем роль researcher
-	user := &model.User{
-		Login:        req.Login,
-		PasswordHash: string(hash),
-		Role:         "researcher",
-	}
-
-	if err := h.userRepo.Create(r.Context(), user); err != nil {
-		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка создания пользователя", nil)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]int{"id": user.ID})
+func SetLoginRateLimiter(rl *middleware.RateLimiter) {
+	loginRateLimiter = rl
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +53,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := h.userRepo.FindByLogin(r.Context(), req.Login)
-
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка сервера", nil)
 		return
@@ -110,6 +64,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		WriteError(w, http.StatusUnauthorized, "invalid_credentials", "Неверный логин или пароль", nil)
 		return
+	}
+
+	// Сбрасываем счётчик попыток при успешном входе
+	if loginRateLimiter != nil {
+		ip := middleware.GetIP(r)
+		loginRateLimiter.Reset(ip)
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
