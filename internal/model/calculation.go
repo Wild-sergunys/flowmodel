@@ -13,8 +13,7 @@ type CalculationInput struct {
 	Tu float64 `json:"tu"`
 
 	// Материал
-	MaterialID int     `json:"material_id"`
-	T0         float64 `json:"t0"`
+	MaterialID int `json:"material_id"`
 
 	// Расчёт
 	Steps int `json:"steps"`

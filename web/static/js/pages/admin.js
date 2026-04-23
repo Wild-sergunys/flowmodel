@@ -31,7 +31,6 @@
   }
 
   let currentUserId = null;
-
   let cachedMaterials = [];
   let cachedParameters = [];
   let materialParameterValues = {};
@@ -57,21 +56,24 @@
         return acc;
       }, {});
     }
-    if (Array.isArray(data.values)) return normalizeMaterialParameterValues(data.values);
-    if (Array.isArray(data.parameters)) return normalizeMaterialParameterValues(data.parameters);
-    return Object.keys(data).reduce((acc, key) => {
-      if (typeof data[key] !== 'object' || data[key] === null) {
-        acc[key] = data[key];
-      }
-      return acc;
-    }, {});
+    return {};
+  }
+
+  async function ensureParametersLoaded() {
+    if (cachedParameters.length) return;
+    try {
+      const params = await FlowModelAPI.client.admin.parameters.list();
+      cachedParameters = Array.isArray(params) ? params : [];
+    } catch (e) {
+      console.error('Не удалось загрузить параметры:', e);
+    }
   }
 
   function populateMaterialParameterSelect() {
     const select = document.getElementById('material-parameter-material');
     if (!select) return;
     const previous = select.value;
-    select.innerHTML = cachedMaterials.map(m => 
+    select.innerHTML = (cachedMaterials || []).map(m => 
       `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`
     ).join('');
     if (previous && cachedMaterials.some(m => String(m.id) === previous)) {
@@ -82,12 +84,12 @@
   function renderMaterialParameterFields() {
     const tbody = document.querySelector('#material-parameters-table tbody');
     if (!tbody) return;
-    if (!cachedMaterials.length) {
+    if (!cachedMaterials || !cachedMaterials.length) {
       tbody.innerHTML = '<tr><td colspan="6">Сначала добавьте материал</td></tr>';
       return;
     }
     if (!cachedParameters.length) {
-      tbody.innerHTML = '<tr><td colspan="6">Сначала добавьте параметры</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6">Параметры не загружены</td></tr>';
       return;
     }
     tbody.innerHTML = cachedParameters.map(p => {
@@ -95,6 +97,22 @@
       const value = hasValue ? materialParameterValues[p.code] : '';
       const inputType = p.data_type === 'string' ? 'text' : 'number';
       const step = p.data_type === 'int' ? '1' : 'any';
+      
+      let min = '';
+      let max = '';
+      if (p.code === 'density' || p.code === 'heat_capacity' || 
+          p.code === 'melting_temp' || p.code === 'mu0' || 
+          p.code === 'Ea' || p.code === 'Tr') {
+        min = 'min="0.0001"';
+      }
+      if (p.code === 'n') {
+        min = 'min="0.01"';
+        max = 'max="0.99"';
+      }
+      if (p.code === 'alpha_u') {
+        min = 'min="0"';
+      }
+      
       return `
         <tr>
           <td><input type="checkbox" name="bind" value="${escapeHtml(p.id)}" data-code="${escapeHtml(p.code)}" ${hasValue ? 'checked' : ''}></td>
@@ -102,7 +120,7 @@
           <td>${escapeHtml(p.name)}</td>
           <td>${escapeHtml(p.data_type)}</td>
           <td>${escapeHtml(p.unit || '-')}</td>
-          <td><input type="${inputType}" step="${step}" name="value_${escapeHtml(p.id)}" value="${escapeHtml(value ?? '')}"></td>
+          <td><input type="${inputType}" step="${step}" name="value_${escapeHtml(p.id)}" value="${escapeHtml(value ?? '')}" ${min} ${max}></td>
         </tr>
       `;
     }).join('');
@@ -116,6 +134,7 @@
       renderMaterialParameterFields();
       return;
     }
+    await ensureParametersLoaded();
     try {
       const data = await FlowModelAPI.client.admin.materials.parameters.list(materialId);
       materialParameterValues = normalizeMaterialParameterValues(data);
@@ -131,8 +150,8 @@
                   document.querySelector('#materials-table').appendChild(document.createElement('tbody'));
     try {
       const materials = await FlowModelAPI.client.admin.materials.list();
-      cachedMaterials = materials;
-      tbody.innerHTML = materials.map(m => `
+      cachedMaterials = Array.isArray(materials) ? materials : [];
+      tbody.innerHTML = cachedMaterials.map(m => `
         <tr>
           <td>${m.id}</td>
           <td>${escapeHtml(m.name)}</td>
@@ -141,6 +160,7 @@
         </tr>
       `).join('');
       populateMaterialParameterSelect();
+      await ensureParametersLoaded();
       await loadMaterialParameterValues();
     } catch (e) { console.error(e); }
   }
@@ -151,13 +171,38 @@
     loadMaterials();
   };
 
+  const materialForm = document.getElementById('material-form');
+  if (materialForm) {
+    materialForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      showFormMessage('material-form-message', '');
+      const fd = new FormData(materialForm);
+      const name = String(fd.get('name') || '').trim();
+      if (!name) {
+        showFormMessage('material-form-message', 'Введите название материала');
+        return;
+      }
+      try {
+        await FlowModelAPI.client.admin.materials.create({
+          name,
+          description: getOptionalString(fd, 'description'),
+        });
+        materialForm.reset();
+        showFormMessage('material-form-message', 'Материал добавлен', false);
+        await loadMaterials();
+      } catch (e) {
+        showFormMessage('material-form-message', e.message || 'Не удалось добавить материал');
+      }
+    });
+  }
+
   async function loadParameters() {
     const tbody = document.querySelector('#parameters-table tbody') ||
                   document.querySelector('#parameters-table').appendChild(document.createElement('tbody'));
     try {
       const params = await FlowModelAPI.client.admin.parameters.list();
-      cachedParameters = params;
-      tbody.innerHTML = params.map(p => `
+      cachedParameters = Array.isArray(params) ? params : [];
+      tbody.innerHTML = cachedParameters.map(p => `
         <tr>
           <td>${p.id}</td>
           <td>${escapeHtml(p.code)}</td>
@@ -177,6 +222,125 @@
     await FlowModelAPI.client.admin.parameters.remove(id);
     loadParameters();
   };
+
+  const parameterForm = document.getElementById('parameter-form');
+  if (parameterForm) {
+    parameterForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      showFormMessage('parameter-form-message', '');
+      const fd = new FormData(parameterForm);
+      const code = String(fd.get('code') || '').trim();
+      const name = String(fd.get('name') || '').trim();
+      if (!code || !/^[a-z0-9_]+$/.test(code)) {
+        showFormMessage('parameter-form-message', 'Условное обозначение должно содержать только латинские строчные буквы, цифры и _');
+        return;
+      }
+      if (!name) {
+        showFormMessage('parameter-form-message', 'Введите название параметра');
+        return;
+      }
+      try {
+        await FlowModelAPI.client.admin.parameters.create({
+          code,
+          name,
+          unit: getOptionalString(fd, 'unit'),
+          data_type: String(fd.get('data_type') || 'float'),
+          category: String(fd.get('category') || 'material_property'),
+          description: getOptionalString(fd, 'description'),
+        });
+        parameterForm.reset();
+        showFormMessage('parameter-form-message', 'Параметр добавлен', false);
+        await loadParameters();
+      } catch (e) {
+        showFormMessage('parameter-form-message', e.message || 'Не удалось добавить параметр');
+      }
+    });
+  }
+
+  const materialParameterSelect = document.getElementById('material-parameter-material');
+  if (materialParameterSelect) {
+    materialParameterSelect.addEventListener('change', loadMaterialParameterValues);
+  }
+
+  const reloadBtn = document.getElementById('reload-material-parameters');
+  if (reloadBtn) {
+    reloadBtn.addEventListener('click', async () => {
+      const materialId = getSelectedMaterialId();
+      if (!materialId) {
+        showFormMessage('material-parameters-message', 'Выберите материал');
+        return;
+      }
+      showFormMessage('material-parameters-message', 'Обновление...', false);
+      await loadMaterialParameterValues();
+      showFormMessage('material-parameters-message', 'Обновлено', false);
+    });
+  }
+
+  const materialParametersForm = document.getElementById('material-parameters-form');
+  if (materialParametersForm) {
+    materialParametersForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      showFormMessage('material-parameters-message', '');
+
+      const materialId = getSelectedMaterialId();
+      if (!materialId) {
+        showFormMessage('material-parameters-message', 'Выберите материал');
+        return;
+      }
+
+      const checked = Array.from(materialParametersForm.querySelectorAll('input[name="bind"]:checked'));
+      const parameters = checked.map(checkbox => {
+        const parameterId = Number(checkbox.value);
+        const code = checkbox.dataset.code;
+        const input = materialParametersForm.querySelector(`[name="value_${parameterId}"]`);
+        const rawValue = String(input?.value ?? '').trim();
+        const parameter = cachedParameters.find(p => Number(p.id) === parameterId);
+        const isString = parameter?.data_type === 'string';
+
+        return {
+          parameter_id: parameterId,
+          code: code,
+          value: isString ? rawValue : Number(rawValue),
+          value_float: isString ? null : Number(rawValue),
+          value_string: isString ? rawValue : null,
+        };
+      });
+
+      // Проверка значений
+      const invalid = parameters.find(p => {
+        if (p.value === '' || (typeof p.value === 'number' && !Number.isFinite(p.value))) return true;
+        if (p.code === 'n' && (p.value <= 0 || p.value >= 1)) return true;
+        if ((p.code === 'density' || p.code === 'heat_capacity' || 
+            p.code === 'melting_temp' || p.code === 'mu0' || 
+            p.code === 'Ea' || p.code === 'Tr') && p.value <= 0) return true;
+        if (p.code === 'alpha_u' && p.value < 0) return true;
+        return false;
+      });
+
+      if (invalid) {
+        showFormMessage('material-parameters-message', 
+          'Проверьте значения: плотность/теплоёмкость/температуры/μ0/Ea > 0, n ∈ (0; 1), αu ≥ 0');
+        return;
+      }
+
+      const values = {};
+      parameters.forEach(p => {
+        values[p.code] = p.value;
+      });
+
+      try {
+        await FlowModelAPI.client.admin.materials.parameters.update(materialId, {
+          parameters,
+          values,
+        });
+        showFormMessage('material-parameters-message', 'Параметры материала сохранены', false);
+        await loadMaterialParameterValues();
+      } catch (e) {
+        console.error(e);
+        showFormMessage('material-parameters-message', e.message || 'Не удалось сохранить параметры');
+      }
+    });
+  }
 
   async function loadUsers() {
     const tbody = document.querySelector('#users-table tbody') ||
@@ -226,31 +390,23 @@
       createForm.reset();
     });
   }
-
   if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      modal.style.display = 'none';
-    });
+    cancelBtn.addEventListener('click', () => { modal.style.display = 'none'; });
   }
-
   if (modal) {
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.style.display = 'none';
-    });
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
   }
-
   if (createForm) {
     createForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorDiv.textContent = '';
       const formData = new FormData(createForm);
-      const data = {
-        login: formData.get('login'),
-        password: formData.get('password'),
-        role: formData.get('role')
-      };
       try {
-        await FlowModelAPI.client.admin.users.create(data);
+        await FlowModelAPI.client.admin.users.create({
+          login: formData.get('login'),
+          password: formData.get('password'),
+          role: formData.get('role')
+        });
         modal.style.display = 'none';
         loadUsers();
       } catch (e) {
@@ -265,13 +421,13 @@
       btn.classList.add('active');
       Object.values(tabs).forEach(tab => tab.style.display = 'none');
       tabs[btn.dataset.tab].style.display = 'block';
-      
       if (btn.dataset.tab === 'materials') loadMaterials();
       else if (btn.dataset.tab === 'parameters') loadParameters();
       else if (btn.dataset.tab === 'users') loadUsers();
     });
   });
 
+  // Инициализация
   const user = await checkAdmin();
   if (user) {
     currentUserId = user.id;

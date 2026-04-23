@@ -305,7 +305,7 @@
 
     createLabel('Vu (m/s)', '#3366cc', new THREE.Vector3(1.3, -0.1, -0.1), 18);
     createLabel('Tu (°C)', '#ff3c8e', new THREE.Vector3(-0.1, 1.3, -0.1), 18);
-    createLabel('Q (m³/s)', '#c8ff00', new THREE.Vector3(-0.1, -0.1, 1.3), 18);
+    createLabel('Q (м³/с)', '#c8ff00', new THREE.Vector3(-0.1, -0.1, 1.3), 18);
 
     [0, 0.25, 0.5, 0.75, 1.0].forEach(t => {
       createLabel((minVu + t * (maxVu - minVu)).toFixed(2), '#3366cc', new THREE.Vector3(t, -0.12, -0.12), 12);
@@ -348,9 +348,13 @@
       
       const formData = new FormData(form);
       const data = {
-        w: parseFloat(formData.get('w')), h: parseFloat(formData.get('h')), l: parseFloat(formData.get('l')),
-        vu: parseFloat(formData.get('vu')), tu: parseFloat(formData.get('tu')),
-        material_id: parseInt(formData.get('material_id')), t0: parseFloat(formData.get('t0')), steps: parseInt(formData.get('steps'))
+        w: parseFloat(formData.get('w')), 
+        h: parseFloat(formData.get('h')), 
+        l: parseFloat(formData.get('l')),
+        vu: parseFloat(formData.get('vu')), 
+        tu: parseFloat(formData.get('tu')),
+        material_id: parseInt(formData.get('material_id')), 
+        steps: parseInt(formData.get('steps'))
       };
 
       try {
@@ -358,7 +362,7 @@
         const eta0 = Number(result.profile?.[0]?.viscosity) || 1;
         const eta = Number(result.viscosity) || Number(result.profile?.[result.profile.length - 1]?.viscosity) || eta0;
         const productivity = calculateProductivity(data.w, data.h, data.vu, eta0, eta);
-        document.getElementById('productivity').textContent = productivity.toFixed(6);
+        document.getElementById('productivity').textContent = productivity.toFixed(4) + ' кг/ч';
         document.getElementById('temperature').textContent = result.temperature.toFixed(1);
         document.getElementById('viscosity').textContent = result.viscosity.toFixed(1);
         resultsDiv.style.display = 'block';

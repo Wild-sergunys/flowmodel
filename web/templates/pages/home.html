@@ -41,16 +41,12 @@
 
       <fieldset style="border: 2px solid var(--text); padding: 16px; margin-bottom: 20px;">
         <legend style="font-weight: bold; padding: 0 10px; text-transform: uppercase; letter-spacing: 1px;">Параметры материала и расчёта</legend>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
           <div class="form-group">
             <label>Материал</label>
             <select name="material_id" required>
               <option value="1">ПВХ</option>
             </select>
-          </div>
-          <div class="form-group">
-            <label>T0 (температура плавления), °C</label>
-            <input type="number" name="t0" value="145" step="1" min="0" max="500" required>
           </div>
           <div class="form-group">
             <label>Количество шагов</label>
@@ -71,7 +67,7 @@
     <div class="card">
       <h2 style="margin-top: 0;">Результаты</h2>
       <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px;">
-        <div><strong>Производительность:</strong> <span id="productivity"></span> м³/с</div>
+        <div><strong>Производительность:</strong> <span id="productivity"></span></div>
         <div><strong>Температура:</strong> <span id="temperature"></span> °C</div>
         <div><strong>Вязкость:</strong> <span id="viscosity"></span> Па·с</div>
       </div>

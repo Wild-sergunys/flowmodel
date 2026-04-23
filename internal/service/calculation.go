@@ -43,7 +43,6 @@ func (s *CalculationService) Calculate(ctx context.Context, input *model.Calcula
 		return nil, err
 	}
 
-	// Расчёт
 	result := s.compute(input, params)
 
 	inputJSON, _ := json.Marshal(input)
@@ -69,25 +68,42 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 	Ea := params["Ea"]
 	Tr := params["Tr"]
 	n := params["n"]
-	if mu0 == 0 {
+	meltingTemp := params["melting_temp"]
+
+	if mu0 <= 0 {
 		mu0 = 12000
 	}
-	if n == 0 {
+	if n <= 0 || n >= 1 {
 		n = 0.28
+	}
+	if meltingTemp <= 0 {
+		meltingTemp = 145
+	}
+	if Tr <= 0 {
+		Tr = 180
 	}
 
 	const R = 8.314
 
-	dx := input.L / float64(input.Steps)
+	W := input.W
+	H := input.H
+	L := input.L
+	Vu := input.Vu
+	Tu := input.Tu
+
+	gammaDot := Vu / H
+	dx := L / float64(input.Steps)
 	var profile []model.Point
 
 	for i := 0; i <= input.Steps; i++ {
 		x := float64(i) * dx
-		t := input.T0 + (input.Tu-input.T0)*(x/input.L)
 
+		// Плавный нагрев по экспоненте
+		t := meltingTemp + (Tu-meltingTemp)*(1-math.Exp(-5*x/L))
+
+		// Вязкость по Андраде + Оствальд-де'Вилье
 		Tk := t + 273.15
 		Trk := Tr + 273.15
-		gammaDot := input.Vu / input.H
 
 		var mu float64
 		if Ea > 0 && Tr > 0 {
@@ -102,8 +118,16 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 
 	lastPoint := profile[len(profile)-1]
 
+	// Массовая производительность кг/ч
+	density := params["density"]
+	if density <= 0 {
+		density = 1380
+	}
+	Qch := (W * H * Vu) / 2
+	productivityKgH := density * Qch * 3600
+
 	return &model.CalculationResult{
-		Productivity: input.W * input.H * input.Vu / 2,
+		Productivity: productivityKgH,
 		Temperature:  lastPoint.Temperature,
 		Viscosity:    lastPoint.Viscosity,
 		Profile:      profile,

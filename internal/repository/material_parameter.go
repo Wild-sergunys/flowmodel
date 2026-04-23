@@ -7,6 +7,7 @@ import (
 
 type MaterialParameterRepository interface {
 	FindByMaterialID(ctx context.Context, materialID int) (map[string]float64, error)
+	Update(ctx context.Context, materialID int, params map[string]float64) error // ← новое
 }
 
 type MaterialParameterRepo struct {
@@ -40,4 +41,31 @@ func (r *MaterialParameterRepo) FindByMaterialID(ctx context.Context, materialID
 		params[code] = value
 	}
 	return params, nil
+}
+
+func (r *MaterialParameterRepo) Update(ctx context.Context, materialID int, params map[string]float64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx, `DELETE FROM material_parameters WHERE material_id = ?`, materialID)
+	if err != nil {
+		return err
+	}
+
+	for code, value := range params {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO material_parameters (material_id, parameter_id, value_float)
+			SELECT ?, p.id, ?
+			FROM parameters p
+			WHERE p.code = ?
+		`, materialID, value, code)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }

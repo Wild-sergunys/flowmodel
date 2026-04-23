@@ -55,6 +55,7 @@ func main() {
 	// Хэндлеры
 	authHandler := handler.NewAuthHandler(authService)
 	materialHandler := handler.NewMaterialHandler(materialRepo)
+	materialParamHandler := handler.NewMaterialParameterHandler(materialParamRepo)
 	adminHandler := handler.NewAdminHandler(materialRepo)
 	userHandler := handler.NewUserHandler(userRepo)
 	paramHandler := handler.NewParameterHandler(paramRepo)
@@ -95,6 +96,8 @@ func main() {
 
 	// Materials (public)
 	mux.Handle("GET /api/materials", authMiddleware(http.HandlerFunc(materialHandler.GetAll)))
+	mux.Handle("GET /api/admin/materials/{id}/parameters", authMiddleware(adminMiddleware(http.HandlerFunc(materialParamHandler.ListParameters))))
+	mux.Handle("PUT /api/admin/materials/{id}/parameters", authMiddleware(adminMiddleware(http.HandlerFunc(materialParamHandler.UpdateParameters))))
 
 	// Validation (public)
 	mux.HandleFunc("POST /api/validate", calcHandler.Validate)

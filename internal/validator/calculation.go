@@ -56,16 +56,8 @@ func ValidateCalculationInput(input *model.CalculationInput, materialRepo reposi
 	if input.Tu < 0 || input.Tu > 500.0 {
 		errors = append(errors, ValidationError{Field: "tu", Message: "должно быть от 0 до 500.0"})
 	}
-	if input.T0 < 0 || input.T0 > 500.0 {
-		errors = append(errors, ValidationError{Field: "t0", Message: "должно быть от 0 до 500.0"})
-	}
 	if input.Steps != 0 && (input.Steps < 10 || input.Steps > 100000) {
 		errors = append(errors, ValidationError{Field: "steps", Message: "должно быть от 10 до 100000"})
-	}
-
-	// Логическая совместимость
-	if input.T0 != 0 && input.Tu != 0 && input.T0 >= input.Tu {
-		errors = append(errors, ValidationError{Field: "t0", Message: "начальная температура должна быть меньше температуры крышки"})
 	}
 
 	return errors
