@@ -35,17 +35,82 @@
       data: {
         labels: profile.map(p => p.x.toFixed(2)),
         datasets: [
-          { label: 'Температура (°C)', data: profile.map(p => p.temperature), borderColor: '#ff3c8e', borderWidth: 3, pointRadius: 0, tension: 0.3, yAxisID: 'y' },
-          { label: 'η (Па·с)', data: profile.map(p => p.viscosity), borderColor: '#c8ff00', borderWidth: 3, pointRadius: 0, tension: 0.3, yAxisID: 'y1' }
+          { 
+            label: 'Температура, °C', 
+            data: profile.map(p => p.temperature), 
+            borderColor: '#ff3c8e', 
+            borderWidth: 3, 
+            pointRadius: 0, 
+            tension: 0.3, 
+            yAxisID: 'y' 
+          },
+          { 
+            label: 'Вязкость, Па·с', 
+            data: profile.map(p => p.viscosity), 
+            borderColor: '#c8ff00', 
+            borderWidth: 3, 
+            pointRadius: 0, 
+            tension: 0.3, 
+            yAxisID: 'y1' 
+          }
         ]
       },
       options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        plugins: { legend: { labels: { font: { family: 'Courier New' } } } },
+        responsive: true, 
+        maintainAspectRatio: false, 
+        animation: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: { 
+          legend: { 
+            labels: { 
+              font: { family: 'Courier New' },
+              usePointStyle: true,
+            } 
+          },
+          tooltip: {
+            callbacks: {
+              title: function(items) {
+                return 'Координата канала: ' + items[0].label + ' м';
+              },
+              label: function(item) {
+                return item.dataset.label + ': ' + item.raw;
+              }
+            }
+          }
+        },
         scales: {
-          x: { title: { display: true, text: 'Длина (м)' }, grid: { color: '#1a1a1a' } },
-          y: { type: 'linear', position: 'left', title: { display: true, text: 'Температура (°C)' }, grid: { color: '#1a1a1a' } },
-          y1: { type: 'linear', position: 'right', title: { display: true, text: 'η (Па·с)' }, grid: { drawOnChartArea: false }, reverse: false }
+          x: { 
+            title: { 
+              display: true, 
+              text: 'Координата канала, м',
+              font: { family: 'Courier New', weight: 'bold' }
+            }, 
+            grid: { color: '#1a1a1a' } 
+          },
+          y: { 
+            type: 'linear', 
+            position: 'left', 
+            title: { 
+              display: true, 
+              text: 'Температура, °C',
+              font: { family: 'Courier New', weight: 'bold' }
+            }, 
+            grid: { color: '#1a1a1a' } 
+          },
+          y1: { 
+            type: 'linear', 
+            position: 'right', 
+            title: { 
+              display: true, 
+              text: 'Вязкость, Па·с',
+              font: { family: 'Courier New', weight: 'bold' }
+            }, 
+            grid: { drawOnChartArea: false }, 
+            reverse: false 
+          }
         }
       }
     });
@@ -114,7 +179,6 @@
     dirLight2.position.set(-1, 1, -1);
     scene.add(dirLight2);
 
-    // Нормализация
     const w = Number(input.w) || 0;
     const h = Number(input.h) || 0;
     const baseVu = Math.max(Number(input.vu) || 0, 0.0001);
@@ -204,11 +268,9 @@
     );
     scene.add(marker);
 
-    // Оси
     const axesHelper = new THREE.AxesHelper(1.5);
     scene.add(axesHelper);
 
-    // Функция метки
     function createLabel(text, color, position, fontSize = 18) {
       const canvas = document.createElement('canvas');
       canvas.width = 128;
@@ -229,8 +291,8 @@
     }
 
     createLabel('Vu (m/s)', '#3366cc', new THREE.Vector3(1.3, -0.1, -0.1), 18);
-    createLabel('Tu (C)', '#ff3c8e', new THREE.Vector3(-0.1, 1.3, -0.1), 18);
-    createLabel('Q (m3/s)', '#c8ff00', new THREE.Vector3(-0.1, -0.1, 1.3), 18);
+    createLabel('Tu (°C)', '#ff3c8e', new THREE.Vector3(-0.1, 1.3, -0.1), 18);
+    createLabel('Q (m³/s)', '#c8ff00', new THREE.Vector3(-0.1, -0.1, 1.3), 18);
 
     [0, 0.25, 0.5, 0.75, 1.0].forEach(t => {
       createLabel((minVu + t * (maxVu - minVu)).toFixed(2), '#3366cc', new THREE.Vector3(t, -0.12, -0.12), 12);
