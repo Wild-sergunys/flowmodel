@@ -60,6 +60,15 @@ func main() {
 		log.Fatal("Ошибка инициализации frontend:", err)
 	}
 
+	// Rate limiter для логина (настройки из cfg)
+	loginLimiter := middleware.NewRateLimiter(
+		cfg.LoginMaxAttempts,
+		time.Duration(cfg.LoginWindowMin)*time.Minute,
+		time.Duration(cfg.LoginBlockMin)*time.Minute,
+	)
+	handler.SetLoginRateLimiter(loginLimiter)
+	loginRateLimitMiddleware := middleware.LoginRateLimitMiddleware(loginLimiter)
+
 	// Middleware
 	authMiddleware := middleware.AuthMiddleware([]byte(jwtKey))
 	adminMiddleware := middleware.RoleMiddleware("admin")
@@ -75,8 +84,7 @@ func main() {
 	mux.HandleFunc("GET /cabinet", webHandler.Cabinet)
 
 	// Auth
-	mux.HandleFunc("POST /api/auth/register", authHandler.Register)
-	mux.HandleFunc("POST /api/auth/login", authHandler.Login)
+	mux.Handle("POST /api/auth/login", loginRateLimitMiddleware(http.HandlerFunc(authHandler.Login)))
 	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
 	mux.Handle("GET /api/auth/me", authMiddleware(http.HandlerFunc(authHandler.Me)))
 
@@ -86,7 +94,7 @@ func main() {
 	// Validation (public)
 	mux.HandleFunc("POST /api/validate", calcHandler.Validate)
 
-	// Calculation (фейковый)
+	// Calculation
 	mux.HandleFunc("POST /api/calculate", calcHandler.Calculate)
 
 	// Admin Materials

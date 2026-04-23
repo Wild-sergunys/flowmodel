@@ -2,25 +2,32 @@ package config
 
 import (
 	"os"
+	"strconv"
 )
 
 type Config struct {
-	DBHost     string
-	DBPort     string
-	DBUser     string
-	DBPassword string
-	DBName     string
-	ServerPort string
+	DBHost           string
+	DBPort           string
+	DBUser           string
+	DBPassword       string
+	DBName           string
+	ServerPort       string
+	LoginMaxAttempts int
+	LoginWindowMin   int
+	LoginBlockMin    int
 }
 
 func Load() *Config {
 	return &Config{
-		DBHost:     getEnv("DB_HOST", "127.0.0.1"),
-		DBPort:     getEnv("DB_PORT", "3306"),
-		DBUser:     getEnv("DB_USER", "root"),
-		DBPassword: getEnv("DB_PASSWORD", "root"),
-		DBName:     getEnv("DB_NAME", "flowmodel"),
-		ServerPort: getEnv("SERVER_PORT", "8080"),
+		DBHost:           getEnv("DB_HOST", "127.0.0.1"),
+		DBPort:           getEnv("DB_PORT", "3306"),
+		DBUser:           getEnv("DB_USER", "root"),
+		DBPassword:       getEnv("DB_PASSWORD", "root"),
+		DBName:           getEnv("DB_NAME", "flowmodel"),
+		ServerPort:       getEnv("SERVER_PORT", "8080"),
+		LoginMaxAttempts: getEnvInt("LOGIN_MAX_ATTEMPTS", 5),
+		LoginWindowMin:   getEnvInt("LOGIN_WINDOW_MINUTES", 15),
+		LoginBlockMin:    getEnvInt("LOGIN_BLOCK_MINUTES", 15),
 	}
 }
 
@@ -34,4 +41,13 @@ func getEnv(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func getEnvInt(key string, defaultVal int) int {
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
+	return defaultVal
 }
