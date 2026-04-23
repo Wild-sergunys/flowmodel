@@ -2,11 +2,11 @@
 <header class="header">
   <a class="logo" href="/">FlowModel</a>
   <nav class="nav" aria-label="Основная навигация">
-    <a href="/">Расчёт</a>
+    <a href="/" id="home-link" style="display: none;">Расчёт</a>
     <a href="/cabinet" id="cabinet-link" style="display: none;">Кабинет</a>
     <a href="/admin" id="admin-link" style="display: none;">Админ</a>
     <a href="#" id="logout-btn" style="display: none;">Выход</a>
-    <a href="/login" id="login-link">Вход</a>
+    <a href="/login" id="login-link" style="display: none;">Вход</a>
   </nav>
 </header>
 <script>
@@ -14,16 +14,43 @@
   function updateNav() {
     const token = sessionStorage.getItem('flowmodel_token');
     const role = sessionStorage.getItem('flowmodel_role');
+    const currentPath = window.location.pathname;
     
+    const homeLink = document.getElementById('home-link');
     const loginLink = document.getElementById('login-link');
     const logoutBtn = document.getElementById('logout-btn');
     const cabinetLink = document.getElementById('cabinet-link');
     const adminLink = document.getElementById('admin-link');
     
-    if (loginLink) loginLink.style.display = token ? 'none' : 'inline';
-    if (logoutBtn) logoutBtn.style.display = token ? 'inline' : 'none';
-    if (cabinetLink) cabinetLink.style.display = token ? 'inline' : 'none';
-    if (adminLink) adminLink.style.display = (token && role === 'admin') ? 'inline' : 'none';
+    if (!token) {
+      if (homeLink) homeLink.style.display = 'none';
+      if (loginLink) loginLink.style.display = 'inline';
+      if (logoutBtn) logoutBtn.style.display = 'none';
+      if (cabinetLink) cabinetLink.style.display = 'none';
+      if (adminLink) adminLink.style.display = 'none';
+      return;
+    }
+    
+    if (loginLink) loginLink.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'inline';
+    
+    if (role === 'admin') {
+      if (homeLink) homeLink.style.display = 'none';
+      if (cabinetLink) cabinetLink.style.display = 'none';
+      if (adminLink) adminLink.style.display = 'inline';
+      
+      if (currentPath !== '/admin' && 
+          currentPath !== '/login' && 
+          !currentPath.startsWith('/static/') &&
+          !currentPath.startsWith('/api/')) {
+        window.location.href = '/admin';
+      }
+      return;
+    }
+    
+    if (homeLink) homeLink.style.display = 'inline';
+    if (cabinetLink) cabinetLink.style.display = 'inline';
+    if (adminLink) adminLink.style.display = 'none';
   }
   
   document.addEventListener('DOMContentLoaded', updateNav);
