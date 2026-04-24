@@ -4,12 +4,13 @@ services:
     container_name: flowmodel_db
     restart: unless-stopped
     command: 
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --init-connect=SET NAMES utf8mb4
-      - --innodb_buffer_pool_size=256M
-      - --max_connections=500
-      - --innodb_redo_log_capacity=100M
+        - --character-set-server=utf8mb4
+        - --collation-server=utf8mb4_unicode_ci
+        - --init-connect=SET NAMES utf8mb4
+        - --innodb_buffer_pool_size=256M
+        - --max_connections=200
+        - --innodb_redo_log_capacity=100M
+        - --innodb_flush_log_at_trx_commit=2
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
       MYSQL_DATABASE: ${DB_NAME:-flowmodel}
