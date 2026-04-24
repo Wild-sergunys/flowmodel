@@ -18,24 +18,6 @@ components:
 
   schemas:
     # Аутентификация
-    RegisterRequest:
-      type: object
-      required:
-        - login
-        - password
-      properties:
-        login:
-          type: string
-          minLength: 3
-          maxLength: 50
-          description: Логин пользователя
-        password:
-          type: string
-          minLength: 6
-          maxLength: 100
-          description: Пароль пользователя
-          format: password
-
     LoginRequest:
       type: object
       required:
@@ -176,7 +158,7 @@ components:
         productivity:
           type: number
           format: double
-          description: Объёмный расход (производительность), м³/с
+          description: Объёмный расход (производительность), кг/ч
           example: 0.001875
         temperature:
           type: number
@@ -238,6 +220,44 @@ components:
         name:
           type: string
           description: Название материала
+
+    MaterialParameterValue:
+      type: object
+      description: Значение параметра материала
+      properties:
+        code:
+          type: string
+          description: Технический код параметра
+          example: "density"
+        value_float:
+          type: number
+          format: double
+          description: Числовое значение параметра
+          example: 1380.0
+
+    MaterialParameterUpdateRequest:
+      type: object
+      description: Запрос на обновление параметров материала
+      properties:
+        parameters:
+          type: array
+          description: Массив параметров с кодами и значениями
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+                description: Технический код параметра
+              value_float:
+                type: number
+                format: double
+                description: Числовое значение
+        values:
+          type: object
+          description: Альтернативный формат — объект {код: значение}
+          additionalProperties:
+            type: number
+            format: double
 
     Parameter:
       type: object
@@ -344,6 +364,8 @@ components:
 
     UpdateUserRequest:
       type: object
+      required:
+        - role
       properties:
         role:
           type: string
@@ -443,48 +465,13 @@ components:
 # ПУТИ
 paths:
   # АУТЕНТИФИКАЦИЯ
-  /api/auth/register:
-    post:
-      summary: Регистрация нового пользователя
-      description: |
-        Создаёт новую учётную запись с ролью researcher.
-        Доступно без авторизации.
-      tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterRequest'
-      responses:
-        '201':
-          description: Пользователь создан
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IdResponse'
-        '400':
-          description: Ошибка валидации или пользователь уже существует
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                conflict:
-                  value:
-                    error: "conflict"
-                    message: "Пользователь уже существует"
-                validation:
-                  value:
-                    error: "validation_error"
-                    message: "Логин и пароль обязательны"
-
   /api/auth/login:
     post:
       summary: Вход в систему
       description: |
         Аутентификация пользователя по логину и паролю.
         Возвращает JWT токен для авторизации.
+        Защищено rate-limiting: 5 попыток за 15 минут, затем блокировка на 15 минут.
       tags: [Auth]
       requestBody:
         required: true
@@ -508,6 +495,17 @@ paths:
               example:
                 error: "invalid_credentials"
                 message: "Неверный логин или пароль"
+        '429':
+          description: Слишком много попыток входа
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "rate_limit"
+                message: "Слишком много попыток входа. Попробуйте позже."
+                details:
+                  blocked_for_seconds: 900
 
   /api/auth/logout:
     post:
@@ -556,9 +554,8 @@ paths:
       description: |
         Проверяет корректность входных параметров без выполнения расчёта.
         Полезно для предварительной проверки формы.
+        Доступно без авторизации.
       tags: [Calculation]
-      security:
-        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -585,8 +582,6 @@ paths:
                   fields:
                     - field: "w"
                       message: "должно быть от 0.001 до 10.0"
-        '401':
-          description: Не авторизован
 
   # РАСЧЁТ
   /api/calculate:
@@ -596,8 +591,9 @@ paths:
         Выполняет численное моделирование неизотермического течения
         аномально-вязкого материала в канале с подвижной крышкой.
         Возвращает распределения температуры и вязкости по длине канала,
-        а также итоговые показатели процесса.
+        а также итоговые показатели процесса (производительность в кг/ч).
         Результаты автоматически сохраняются в истории расчётов.
+        Поддерживает до 3 повторных попыток при ошибках БД.
       tags: [Calculation]
       security:
         - bearerAuth: []
@@ -632,8 +628,8 @@ paths:
   # ИСТОРИЯ РАСЧЁТОВ
   /api/results:
     get:
-      summary: История расчётов
-      description: Возвращает список всех сохранённых расчётов
+      summary: История расчётов текущего пользователя
+      description: Возвращает список расчётов, выполненных текущим пользователем
       tags: [Results]
       security:
         - bearerAuth: []
@@ -660,7 +656,9 @@ paths:
           minimum: 1
     get:
       summary: Получить расчёт по ID
-      description: Возвращает полную информацию о сохранённом расчёте
+      description: |
+        Возвращает полную информацию о сохранённом расчёте.
+        Доступен только автору расчёта.
       tags: [Results]
       security:
         - bearerAuth: []
@@ -673,6 +671,12 @@ paths:
                 $ref: '#/components/schemas/CalculationHistoryItem'
         '401':
           description: Не авторизован
+        '403':
+          description: Нет доступа к этому расчёту
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Расчёт не найден
           content:
@@ -691,7 +695,9 @@ paths:
           minimum: 1
     get:
       summary: Получить отчёт о расчёте
-      description: Возвращает структурированный отчёт с входными и выходными данными
+      description: |
+        Возвращает структурированный отчёт с входными и выходными данными.
+        Доступен только автору расчёта.
       tags: [Results]
       security:
         - bearerAuth: []
@@ -704,6 +710,12 @@ paths:
                 $ref: '#/components/schemas/CalculationReport'
         '401':
           description: Не авторизован
+        '403':
+          description: Нет доступа к этому расчёту
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Расчёт не найден
 
@@ -717,28 +729,36 @@ paths:
           type: integer
           minimum: 1
     get:
-      summary: Скачать отчёт
+      summary: Скачать отчёт в формате Excel
       description: |
-        Скачивает отчёт о расчёте в формате JSON.
-        Файл имеет имя report_{id}.json
+        Скачивает отчёт о расчёте в формате Excel (.xlsx).
+        Файл имеет имя report_{id}.xlsx
+        Доступен только автору расчёта.
       tags: [Results]
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Файл отчёта
+          description: Файл отчёта Excel
           content:
-            application/json:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema:
-                type: object
+                type: string
+                format: binary
           headers:
             Content-Disposition:
               description: Имя файла для скачивания
               schema:
                 type: string
-                example: attachment; filename=report_42.json
+                example: attachment; filename=report_42.xlsx
         '401':
           description: Не авторизован
+        '403':
+          description: Нет доступа к этому расчёту
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Расчёт не найден
 
@@ -918,6 +938,75 @@ paths:
           description: Доступ запрещён
         '404':
           description: Материал не найден
+
+  /api/admin/materials/{id}/parameters:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Идентификатор материала
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Получить параметры материала
+      description: Возвращает список значений параметров для указанного материала
+      tags: [Admin - Materials]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список значений параметров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MaterialParameterValue'
+        '400':
+          description: Неверный ID материала
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
+
+    put:
+      summary: Обновить параметры материала
+      description: |
+        Обновляет значения параметров для указанного материала.
+        Поддерживает два формата: массив parameters или объект values.
+      tags: [Admin - Materials]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialParameterUpdateRequest'
+      responses:
+        '200':
+          description: Параметры обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "Параметры обновлены"
+        '400':
+          description: Неверный ID материала или формат запроса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не авторизован
+        '403':
+          description: Доступ запрещён
 
   # АДМИНИСТРИРОВАНИЕ: СЛОВАРЬ ПАРАМЕТРОВ
   /api/admin/parameters:
@@ -1222,7 +1311,9 @@ paths:
 
     delete:
       summary: Удалить пользователя
-      description: Удаляет учётную запись пользователя
+      description: |
+        Удаляет учётную запись пользователя.
+        Нельзя удалить самого себя.
       tags: [Admin - Users]
       security:
         - bearerAuth: []
@@ -1238,7 +1329,22 @@ paths:
         '401':
           description: Не авторизован
         '403':
-          description: Доступ запрещён
+          description: |
+            Доступ запрещён.
+            Возможные причины: недостаточно прав или попытка удалить самого себя.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                forbidden:
+                  value:
+                    error: "forbidden"
+                    message: "Доступ запрещён"
+                self_delete:
+                  value:
+                    error: "forbidden"
+                    message: "Нельзя удалить самого себя"
         '404':
           description: Пользователь не найден
 
@@ -1253,7 +1359,7 @@ tags:
   - name: Materials
     description: Справочник материалов (общий доступ)
   - name: Admin - Materials
-    description: Управление материалами (только для администратора)
+    description: Управление материалами и их параметрами (только для администратора)
   - name: Admin - Parameters Dictionary
     description: Управление словарём параметров (только для администратора)
   - name: Admin - Users
