@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"strings"
+	"time"
 
 	"flowmodel/internal/model"
 )
@@ -23,15 +25,32 @@ func NewCalculationRepo(db *sql.DB) *CalculationRepo {
 }
 
 func (r *CalculationRepo) Create(ctx context.Context, calc *model.Calculation) error {
-	result, err := r.db.ExecContext(ctx,
-		`INSERT INTO calculations (user_id, material_id, input_json, result_json) VALUES (?, ?, ?, ?)`,
-		calc.UserID, calc.MaterialID, calc.InputJSON, calc.ResultJSON)
-	if err != nil {
-		return err
+	var lastErr error
+
+	for attempt := 0; attempt < 3; attempt++ {
+		result, err := r.db.ExecContext(ctx,
+			`INSERT INTO calculations (user_id, material_id, input_json, result_json) VALUES (?, ?, ?, ?)`,
+			calc.UserID, calc.MaterialID, calc.InputJSON, calc.ResultJSON)
+
+		if err == nil {
+			id, _ := result.LastInsertId()
+			calc.ID = int(id)
+			return nil
+		}
+
+		lastErr = err
+
+		// Если ошибка не про соединение с БД - нет смысла ретраить
+		if !isRetryableError(err) {
+			return err
+		}
+
+		if attempt < 2 {
+			time.Sleep(time.Millisecond * time.Duration(10*(attempt+1)))
+		}
 	}
-	id, _ := result.LastInsertId()
-	calc.ID = int(id)
-	return nil
+
+	return lastErr
 }
 
 func (r *CalculationRepo) FindAll(ctx context.Context) ([]model.Calculation, error) {
@@ -90,4 +109,31 @@ func (r *CalculationRepo) FindByUserID(ctx context.Context, userID int) ([]model
 		calcs = append(calcs, c)
 	}
 	return calcs, nil
+}
+
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+
+	// Таймауты, потеря соединения, дедлоки - ретраим
+	retryablePatterns := []string{
+		"timeout",
+		"connection refused",
+		"connection reset",
+		"too many connections",
+		"deadlock",
+		"lock wait timeout",
+		"try restarting transaction",
+	}
+
+	for _, pattern := range retryablePatterns {
+		if strings.Contains(strings.ToLower(errStr), pattern) {
+			return true
+		}
+	}
+
+	return false
 }

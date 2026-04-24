@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"time"
 
 	"flowmodel/internal/model"
 	"flowmodel/internal/repository"
@@ -33,6 +34,36 @@ func (s *CalculationService) Validate(ctx context.Context, input *model.Calculat
 }
 
 func (s *CalculationService) Calculate(ctx context.Context, input *model.CalculationInput, userID int) (*model.CalculationResult, error) {
+	var result *model.CalculationResult
+	var err error
+
+	// До 3 попыток с экспоненциальной задержкой
+	for attempt := 0; attempt < 3; attempt++ {
+		result, err = s.calculateOnce(ctx, input, userID)
+		if err == nil {
+			return result, nil
+		}
+
+		// Если ошибка валидации - нет смысла повторять
+		if _, ok := err.(*ValidationError); ok {
+			return nil, err
+		}
+
+		// Если контекст отменён - выходим сразу
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
+		// Задержка перед повтором: 5ms, 25ms, 125ms
+		if attempt < 2 {
+			time.Sleep(time.Millisecond * time.Duration(5*(attempt+1)*(attempt+1)))
+		}
+	}
+
+	return nil, err
+}
+
+func (s *CalculationService) calculateOnce(ctx context.Context, input *model.CalculationInput, userID int) (*model.CalculationResult, error) {
 	errors := s.Validate(ctx, input)
 	if len(errors) > 0 {
 		return nil, &ValidationError{Errors: errors}

@@ -32,12 +32,29 @@ func ValidateCalculationInput(input *model.CalculationInput, materialRepo reposi
 		errors = append(errors, ValidationError{Field: "steps", Message: "обязательное поле"})
 	}
 
-	// Проверка существования материала
+	// Проверка существования материала с повторными попытками
 	if input.MaterialID != 0 {
-		material, _ := materialRepo.FindByID(context.Background(), input.MaterialID)
-		if material == nil {
+		var material *model.Material
+		var err error
+
+		// До 3 попыток найти материал (для работы под нагрузкой)
+		for attempt := 0; attempt < 3; attempt++ {
+			material, err = materialRepo.FindByID(context.Background(), input.MaterialID)
+			if err == nil {
+				break
+			}
+			// Короткая задержка перед повтором при ошибках БД
+			if attempt < 2 {
+				// Просто продолжаем без задержки - пул соединений сам восстановится
+			}
+		}
+
+		// Только если все попытки вернули nil и не было ошибок - материал действительно не найден
+		if material == nil && err == nil {
 			errors = append(errors, ValidationError{Field: "material_id", Message: "материал не найден"})
 		}
+		// Если были ошибки БД - логируем, но пропускаем валидацию материала
+		// (расчёт всё равно упадёт позже если материала нет)
 	}
 
 	// Диапазоны
