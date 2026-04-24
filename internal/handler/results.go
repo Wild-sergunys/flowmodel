@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -10,14 +11,19 @@ import (
 	"flowmodel/internal/middleware"
 	"flowmodel/internal/model"
 	"flowmodel/internal/repository"
+	"flowmodel/internal/service"
 )
 
 type ResultsHandler struct {
-	calcRepo repository.CalculationRepository
+	calcRepo     repository.CalculationRepository
+	materialRepo repository.MaterialRepository
 }
 
-func NewResultsHandler(calcRepo repository.CalculationRepository) *ResultsHandler {
-	return &ResultsHandler{calcRepo: calcRepo}
+func NewResultsHandler(calcRepo repository.CalculationRepository, materialRepo repository.MaterialRepository) *ResultsHandler {
+	return &ResultsHandler{
+		calcRepo:     calcRepo,
+		materialRepo: materialRepo,
+	}
 }
 
 func getUserID(r *http.Request) (int, bool) {
@@ -150,18 +156,32 @@ func (h *ResultsHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	report := map[string]interface{}{
-		"id":          calc.ID,
-		"user_id":     calc.UserID,
-		"material_id": calc.MaterialID,
-		"created_at":  calc.CreatedAt,
-		"input":       json.RawMessage(calc.InputJSON),
-		"result":      json.RawMessage(calc.ResultJSON),
+	materialName := "неизвестный"
+	if material, err := h.materialRepo.FindByID(r.Context(), calc.MaterialID); err == nil && material != nil {
+		materialName = material.Name
 	}
 
-	data, _ := json.MarshalIndent(report, "", "  ")
+	var inputData, resultData map[string]interface{}
+	json.Unmarshal([]byte(calc.InputJSON), &inputData)
+	json.Unmarshal([]byte(calc.ResultJSON), &resultData)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", "attachment; filename=report_"+strconv.Itoa(id)+".json")
-	w.Write(data)
+	calcData := map[string]interface{}{
+		"id":            calc.ID,
+		"material_id":   calc.MaterialID,
+		"material_name": materialName,
+		"created_at":    calc.CreatedAt,
+		"input":         inputData,
+		"result":        resultData,
+	}
+
+	excelData, err := service.GenerateExcel(calcData)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка генерации отчёта", nil)
+		return
+	}
+
+	filename := fmt.Sprintf("report_%d.xlsx", id)
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	w.Write(excelData)
 }

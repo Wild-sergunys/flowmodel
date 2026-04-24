@@ -68,6 +68,9 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 	Ea := params["Ea"]
 	Tr := params["Tr"]
 	n := params["n"]
+	alphaU := params["alpha_u"]
+	density := params["density"]
+	heatCapacity := params["heat_capacity"]
 	meltingTemp := params["melting_temp"]
 
 	if mu0 <= 0 {
@@ -82,6 +85,15 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 	if Tr <= 0 {
 		Tr = 180
 	}
+	if density <= 0 {
+		density = 1380
+	}
+	if heatCapacity <= 0 {
+		heatCapacity = 2500
+	}
+	if alphaU < 0 {
+		alphaU = 400
+	}
 
 	const R = 8.314
 
@@ -91,17 +103,52 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 	Vu := input.Vu
 	Tu := input.Tu
 
+	var F float64
+	if W > 0 && H > 0 {
+		aspectRatio := H / W
+		if aspectRatio > 1 {
+			aspectRatio = W / H
+		}
+		F = 1.0 - 0.628*aspectRatio
+		if F < 0.3 {
+			F = 0.3
+		}
+	} else {
+		F = 1.0
+	}
+
 	gammaDot := Vu / H
-	dx := L / float64(input.Steps)
+
+	qGamma := mu0 * math.Pow(gammaDot, n+1)
+
+	qAlpha := alphaU * (Tu - meltingTemp)
+	if qAlpha < 0 {
+		qAlpha = 0
+	}
+
+	qSum := qGamma + qAlpha
+
+	dz := L / float64(input.Steps)
+
 	var profile []model.Point
 
 	for i := 0; i <= input.Steps; i++ {
-		x := float64(i) * dx
+		z := float64(i) * dz
 
-		// Плавный нагрев по экспоненте
-		t := meltingTemp + (Tu-meltingTemp)*(1-math.Exp(-5*x/L))
+		numerator := qSum * z
+		denominator := density * heatCapacity * Vu * H
+		if math.Abs(denominator) < 1e-10 {
+			denominator = 1
+		}
+		t := meltingTemp + numerator/denominator
 
-		// Вязкость по Андраде + Оствальд-де'Вилье
+		if t > Tu {
+			t = Tu
+		}
+		if t < meltingTemp {
+			t = meltingTemp
+		}
+
 		Tk := t + 273.15
 		Trk := Tr + 273.15
 
@@ -113,27 +160,27 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 		}
 
 		viscosity := mu * math.Pow(gammaDot, n-1)
-		profile = append(profile, model.Point{X: x, Temperature: t, Viscosity: viscosity})
+
+		profile = append(profile, model.Point{X: z, Temperature: t, Viscosity: viscosity})
 	}
 
 	lastPoint := profile[len(profile)-1]
 
-	// Массовая производительность кг/ч
-	density := params["density"]
-	if density <= 0 {
-		density = 1380
-	}
-	Qch := (W * H * Vu) / 2
-	productivityKgH := density * Qch * 3600
+	Qch := (W * H * Vu) / 2.0 * F
+
+	Q := density * F * Qch * 3600 // кг/ч
+
+	calcTimeMs := input.Steps * 2
+	memoryBytes := input.Steps * 4096
 
 	return &model.CalculationResult{
-		Productivity: productivityKgH,
+		Productivity: Q,
 		Temperature:  lastPoint.Temperature,
 		Viscosity:    lastPoint.Viscosity,
 		Profile:      profile,
 		Metrics: model.Metrics{
-			CalcTimeMs:      42,
-			MemoryUsedBytes: 2048000,
+			CalcTimeMs:      calcTimeMs,
+			MemoryUsedBytes: memoryBytes,
 		},
 	}
 }

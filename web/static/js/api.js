@@ -157,8 +157,9 @@
         get: (id) => get("/api/results/" + encodePathPart(id)),
         report: (id) => get("/api/results/" + encodePathPart(id) + "/report"),
         download: async (id) => {
-          const result = await send("/api/results/" + encodePathPart(id) + "/download", { method: "GET", responseType: "blob" });
-          return { blob: result.data, filename: getFilename(result.response) || "report_" + encodePathPart(id) + ".json" };
+          const result = await send("/api/results/" + encodePathPart(id) + "/download", 
+          { method: "GET", responseType: "blob" });
+        return { blob: result.data, filename: getFilename(result.response) || "report_" + encodePathPart(id)};
         },
       },
       admin: {

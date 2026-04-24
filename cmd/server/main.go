@@ -55,18 +55,18 @@ func main() {
 	// Хэндлеры
 	authHandler := handler.NewAuthHandler(authService)
 	materialHandler := handler.NewMaterialHandler(materialRepo)
-	materialParamHandler := handler.NewMaterialParameterHandler(materialParamRepo)
 	adminHandler := handler.NewAdminHandler(materialRepo)
 	userHandler := handler.NewUserHandler(userRepo)
 	paramHandler := handler.NewParameterHandler(paramRepo)
+	materialParamHandler := handler.NewMaterialParameterHandler(materialParamRepo)
 	calcHandler := handler.NewCalculationHandler(calcService)
-	resultsHandler := handler.NewResultsHandler(calcRepo)
+	resultsHandler := handler.NewResultsHandler(calcRepo, materialRepo)
 	webHandler, err := web.NewHandler()
 	if err != nil {
 		log.Fatal("Ошибка инициализации frontend:", err)
 	}
 
-	// Rate limiter для логина (настройки из cfg)
+	// Rate limiter для логина
 	loginLimiter := middleware.NewRateLimiter(
 		cfg.LoginMaxAttempts,
 		time.Duration(cfg.LoginWindowMin)*time.Minute,
@@ -96,10 +96,8 @@ func main() {
 
 	// Materials (public)
 	mux.Handle("GET /api/materials", authMiddleware(http.HandlerFunc(materialHandler.GetAll)))
-	mux.Handle("GET /api/admin/materials/{id}/parameters", authMiddleware(adminMiddleware(http.HandlerFunc(materialParamHandler.ListParameters))))
-	mux.Handle("PUT /api/admin/materials/{id}/parameters", authMiddleware(adminMiddleware(http.HandlerFunc(materialParamHandler.UpdateParameters))))
 
-	// Validation (public)
+	// Validation
 	mux.HandleFunc("POST /api/validate", calcHandler.Validate)
 
 	// Calculation
@@ -111,6 +109,8 @@ func main() {
 	mux.Handle("POST /api/admin/materials", authMiddleware(adminMiddleware(http.HandlerFunc(adminHandler.CreateMaterial))))
 	mux.Handle("PUT /api/admin/materials/{id}", authMiddleware(adminMiddleware(http.HandlerFunc(adminHandler.UpdateMaterial))))
 	mux.Handle("DELETE /api/admin/materials/{id}", authMiddleware(adminMiddleware(http.HandlerFunc(adminHandler.DeleteMaterial))))
+	mux.Handle("GET /api/admin/materials/{id}/parameters", authMiddleware(adminMiddleware(http.HandlerFunc(materialParamHandler.ListParameters))))
+	mux.Handle("PUT /api/admin/materials/{id}/parameters", authMiddleware(adminMiddleware(http.HandlerFunc(materialParamHandler.UpdateParameters))))
 
 	// Admin Parameters
 	mux.Handle("GET /api/admin/parameters", authMiddleware(adminMiddleware(http.HandlerFunc(paramHandler.GetAll))))
@@ -141,7 +141,7 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	stop := make(chan os.Signal, 1)
+	stop := make(chan os.Signal, 2)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
 	go func() {

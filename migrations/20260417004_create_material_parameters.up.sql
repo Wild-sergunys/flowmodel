@@ -45,3 +45,20 @@ INSERT INTO material_parameters (material_id, parameter_id, value_float) VALUES
 (1, 7, 0.28),
 (1, 8, 400)
 ON DUPLICATE KEY UPDATE value_float = VALUES(value_float);
+
+-- Материал ПЭВП (полиэтилен высокой плотности)
+INSERT INTO materials (id, name, description) VALUES 
+(2, 'ПЭВП', 'Полиэтилен высокой плотности')
+ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description);
+
+-- Значения для ПЭВП
+INSERT INTO material_parameters (material_id, parameter_id, value_float) VALUES
+(2, 1, 950),     
+(2, 2, 2300),
+(2, 3, 135),
+(2, 4, 15000),
+(2, 5, 140000),  
+(2, 6, 190),     
+(2, 7, 0.35),    
+(2, 8, 350)
+ON DUPLICATE KEY UPDATE value_float = VALUES(value_float);

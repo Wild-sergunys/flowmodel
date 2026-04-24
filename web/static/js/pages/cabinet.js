@@ -22,12 +22,12 @@
             <td>${r.id}</td>
             <td>${new Date(r.created_at).toLocaleString()}</td>
             <td>${materialMap[r.material_id] || '-'}</td>
-            <td>${result.productivity.toFixed(6)}</td>
-            <td>${result.temperature.toFixed(1)}</td>
-            <td>${result.viscosity.toFixed(1)}</td>
+            <td>${(result.productivity || 0).toFixed(2)} кг/ч</td>
+            <td>${(result.temperature || 0).toFixed(1)} °C</td>
+            <td>${(result.viscosity || 0).toFixed(1)} Па·с</td>
             <td>
-              <button class="btn btn-small view-btn" data-id="${r.id}" title="Просмотреть отчёт">👁️</button>
-              <button class="btn btn-small download-btn" data-id="${r.id}" title="Скачать JSON">📥</button>
+              <button class="btn btn-small view-btn" data-id="${r.id}" title="Посмотреть отчёт">👁️</button>
+              <button class="btn btn-small download-btn" data-id="${r.id}" title="Скачать Excel">📥</button>
             </td>
           </tr>
         `;
@@ -35,20 +35,49 @@
       
       document.querySelectorAll('.view-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
-          const report = await FlowModelAPI.client.results.report(btn.dataset.id);
-          alert(JSON.stringify(report, null, 2));
+          try {
+            const report = await FlowModelAPI.client.results.report(btn.dataset.id);
+            
+            // Форматируем для красивого показа
+            let text = '';
+            text += '=== ВХОДНЫЕ ПАРАМЕТРЫ ===\n';
+            if (report.input) {
+              const input = typeof report.input === 'string' ? JSON.parse(report.input) : report.input;
+              text += `Ширина: ${input.w} м\n`;
+              text += `Глубина: ${input.h} м\n`;
+              text += `Длина: ${input.l} м\n`;
+              text += `Скорость крышки: ${input.vu} м/с\n`;
+              text += `Температура крышки: ${input.tu} °C\n`;
+              text += `Шагов: ${input.steps}\n`;
+            }
+            text += '\n=== РЕЗУЛЬТАТЫ ===\n';
+            if (report.result) {
+              const result = typeof report.result === 'string' ? JSON.parse(report.result) : report.result;
+              text += `Производительность: ${(result.productivity || 0).toFixed(2)} кг/ч\n`;
+              text += `Температура продукта: ${(result.temperature || 0).toFixed(1)} °C\n`;
+              text += `Вязкость продукта: ${(result.viscosity || 0).toFixed(1)} Па·с\n`;
+            }
+            alert(text);
+          } catch (e) {
+            alert('Ошибка загрузки отчёта');
+          }
         });
       });
       
       document.querySelectorAll('.download-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
-          const { blob, filename } = await FlowModelAPI.client.results.download(btn.dataset.id);
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filename;
-          a.click();
-          URL.revokeObjectURL(url);
+          try {
+            const { blob, filename } = await FlowModelAPI.client.results.download(btn.dataset.id);
+            const excelFilename = filename.includes('.xlsx') ? filename : filename + '.xlsx';
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = excelFilename;
+            a.click();
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            alert('Ошибка скачивания: ' + e.message);
+          }
         });
       });
       
