@@ -1,5 +1,8 @@
 # FLOWMODEL - РАСЧЁТ ПАРАМЕТРОВ КАНАЛА
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/Wild-sergunys/flowmodel)](https://goreportcard.com/report/github.com/Wild-sergunys/flowmodel)
+[![Test](https://github.com/Wild-sergunys/flowmodel/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/Wild-sergunys/flowmodel/actions/workflows/test.yml)
+
 Веб-приложение для моделирования неизотермического течения
 аномально-вязких материалов в канале с подвижной крышкой.
 
