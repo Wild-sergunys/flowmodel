@@ -7,8 +7,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"flowmodel/internal/model"
-	"flowmodel/internal/repository"
+	"github.com/Wild-sergunys/flowmodel/internal/model"
+	"github.com/Wild-sergunys/flowmodel/internal/repository"
 )
 
 type AuthService struct {

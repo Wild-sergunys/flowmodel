@@ -11,13 +11,13 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"flowmodel/internal/config"
-	"flowmodel/internal/database"
-	"flowmodel/internal/handler"
-	"flowmodel/internal/middleware"
-	"flowmodel/internal/repository"
-	"flowmodel/internal/service"
-	"flowmodel/web"
+	"github.com/Wild-sergunys/flowmodel/internal/config"
+	"github.com/Wild-sergunys/flowmodel/internal/database"
+	"github.com/Wild-sergunys/flowmodel/internal/handler"
+	"github.com/Wild-sergunys/flowmodel/internal/middleware"
+	"github.com/Wild-sergunys/flowmodel/internal/repository"
+	"github.com/Wild-sergunys/flowmodel/internal/service"
+	"github.com/Wild-sergunys/flowmodel/web"
 )
 
 func main() {
@@ -88,6 +88,13 @@ func main() {
 	mux.HandleFunc("GET /admin", webHandler.Admin)
 	mux.HandleFunc("GET /", webHandler.Home)
 	mux.HandleFunc("GET /cabinet", webHandler.Cabinet)
+
+	// Health check
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	})
 
 	// Auth
 	mux.Handle("POST /api/auth/login", loginRateLimitMiddleware(http.HandlerFunc(authHandler.Login)))

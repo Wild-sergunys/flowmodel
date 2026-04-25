@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"flowmodel/internal/model"
+	"github.com/Wild-sergunys/flowmodel/internal/model"
 )
 
 type CalculationRepository interface {

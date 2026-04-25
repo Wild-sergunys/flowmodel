@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"flowmodel/internal/model"
+	"github.com/Wild-sergunys/flowmodel/internal/model"
 )
 
 type mockUserRepo struct {

@@ -3,8 +3,8 @@ package validator
 import (
 	"context"
 
-	"flowmodel/internal/model"
-	"flowmodel/internal/repository"
+	"github.com/Wild-sergunys/flowmodel/internal/model"
+	"github.com/Wild-sergunys/flowmodel/internal/repository"
 )
 
 type ValidationError struct {

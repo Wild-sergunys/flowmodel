@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"flowmodel/internal/middleware"
-	"flowmodel/internal/model"
-	"flowmodel/internal/service"
+	"github.com/Wild-sergunys/flowmodel/internal/middleware"
+	"github.com/Wild-sergunys/flowmodel/internal/model"
+	"github.com/Wild-sergunys/flowmodel/internal/service"
 
 	"github.com/golang-jwt/jwt/v5"
 )

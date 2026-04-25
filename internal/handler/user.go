@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"flowmodel/internal/middleware"
-	"flowmodel/internal/model"
-	"flowmodel/internal/repository"
+	"github.com/Wild-sergunys/flowmodel/internal/middleware"
+	"github.com/Wild-sergunys/flowmodel/internal/model"
+	"github.com/Wild-sergunys/flowmodel/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"

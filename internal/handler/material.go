@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"flowmodel/internal/repository"
+	"github.com/Wild-sergunys/flowmodel/internal/repository"
 )
 
 type MaterialHandler struct {

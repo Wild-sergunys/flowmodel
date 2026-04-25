@@ -1,4 +1,4 @@
-module flowmodel
+module github.com/Wild-sergunys/flowmodel
 
 go 1.25.0
 

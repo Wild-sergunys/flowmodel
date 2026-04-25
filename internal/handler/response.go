@@ -2,7 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-	"flowmodel/internal/model"
+	"github.com/Wild-sergunys/flowmodel/internal/model"
 	"net/http"
 )
 

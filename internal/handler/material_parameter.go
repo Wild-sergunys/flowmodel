@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"flowmodel/internal/repository"
+	"github.com/Wild-sergunys/flowmodel/internal/repository"
 )
 
 type MaterialParameterHandler struct {

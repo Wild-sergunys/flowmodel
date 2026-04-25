@@ -8,10 +8,10 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"flowmodel/internal/middleware"
-	"flowmodel/internal/model"
-	"flowmodel/internal/repository"
-	"flowmodel/internal/service"
+	"github.com/Wild-sergunys/flowmodel/internal/middleware"
+	"github.com/Wild-sergunys/flowmodel/internal/model"
+	"github.com/Wild-sergunys/flowmodel/internal/repository"
+	"github.com/Wild-sergunys/flowmodel/internal/service"
 )
 
 type ResultsHandler struct {

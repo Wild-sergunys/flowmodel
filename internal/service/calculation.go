@@ -6,9 +6,9 @@ import (
 	"math"
 	"time"
 
-	"flowmodel/internal/model"
-	"flowmodel/internal/repository"
-	"flowmodel/internal/validator"
+	"github.com/Wild-sergunys/flowmodel/internal/model"
+	"github.com/Wild-sergunys/flowmodel/internal/repository"
+	"github.com/Wild-sergunys/flowmodel/internal/validator"
 )
 
 type CalculationService struct {

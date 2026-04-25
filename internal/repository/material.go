@@ -3,7 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"flowmodel/internal/model"
+
+	"github.com/Wild-sergunys/flowmodel/internal/model"
 )
 
 // >>>> СТРУКТУРЫ <<<<
