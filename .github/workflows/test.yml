@@ -1,15 +1,12 @@
-name: Test
+name: CI/CD Flowmodel
 
 on:
   push:
-    branches: [main, test/*]
-  pull_request:
-    branches: [main]
+    branches: [main] # Запускаем всё только при пуше в основную ветку
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,3 +24,20 @@ jobs:
 
       - name: Unit tests
         run: go test ./internal/... ./web/ -v
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: flowmodel-deployer
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ~/flowmodel
+            
+            git pull origin main
+            
+            docker compose up -d --build
