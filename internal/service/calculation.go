@@ -97,6 +97,9 @@ func (s *CalculationService) calculateOnce(ctx context.Context, input *model.Cal
 func (s *CalculationService) compute(input *model.CalculationInput, params map[string]float64) *model.CalculationResult {
 	mu0 := params["mu0"]
 	Ea := params["Ea"]
+	if Ea <= 0 {
+		panic("отсутствует или некорректно задано значение энергии активации Ea")
+	}
 	Tr := params["Tr"]
 	n := params["n"]
 	alphaU := params["alpha_u"]
@@ -134,6 +137,13 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 	Vu := input.Vu
 	Tu := input.Tu
 
+	if H <= 0 {
+		panic("глубина канала H не может быть меньше или равна нулю")
+	}
+	if input.Steps <= 0 {
+		input.Steps = 100 // fallback на значение по умолчанию
+	}
+
 	var F float64
 	if W > 0 && H > 0 {
 		aspectRatio := H / W
@@ -150,39 +160,25 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 
 	gammaDot := Vu / H
 
-	qGamma := mu0 * math.Pow(gammaDot, n+1)
-
-	qAlpha := alphaU * (Tu - meltingTemp)
-	if qAlpha < 0 {
-		qAlpha = 0
-	}
-
-	qSum := qGamma + qAlpha
-
 	dz := L / float64(input.Steps)
 
 	var profile []model.Point
+	currentTemp := meltingTemp // Начальное условие: T(0) = T_0
+
+	// Знаменатель для уравнения теплового баланса (rho * c * V * H)
+	denominator := density * heatCapacity * Vu * H
+	if math.Abs(denominator) < 1e-10 {
+		denominator = 1
+	}
 
 	for i := 0; i <= input.Steps; i++ {
 		z := float64(i) * dz
 
-		numerator := qSum * z
-		denominator := density * heatCapacity * Vu * H
-		if math.Abs(denominator) < 1e-10 {
-			denominator = 1
-		}
-		t := meltingTemp + numerator/denominator
-
-		if t > Tu {
-			t = Tu
-		}
-		if t < meltingTemp {
-			t = meltingTemp
-		}
-
-		Tk := t + 273.15
+		// 1. Расчет температур в Кельвинах для реологического уравнения
+		Tk := currentTemp + 273.15
 		Trk := Tr + 273.15
 
+		// 2. Расчет коэффициента консистенции по уравнению Андраде
 		var mu float64
 		if Ea > 0 && Tr > 0 {
 			mu = mu0 * math.Exp(Ea/R*(1.0/Tk-1.0/Trk))
@@ -190,17 +186,32 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 			mu = mu0
 		}
 
+		// 3. Вычисление эффективной вязкости в текущем сечении
 		viscosity := mu * math.Pow(gammaDot, n-1)
 
-		profile = append(profile, model.Point{X: z, Temperature: t, Viscosity: viscosity})
+		// 4. Сохранение параметров текущего состояния
+		profile = append(profile, model.Point{
+			X:           z,
+			Temperature: currentTemp,
+			Viscosity:   viscosity,
+		})
+
+		// 5. Расчет локальных тепловых потоков (на основе текущей температуры currentTemp)
+		currentQGamma := mu * math.Pow(gammaDot, n+1)
+		currentQAlpha := alphaU * (Tu - currentTemp)
+		currentQSum := currentQGamma + currentQAlpha
+
+		// 6. Численное интегрирование: расчет приращения температуры dT на шаге dz
+		dT := (currentQSum / denominator) * dz
+		currentTemp += dT
 	}
 
 	lastPoint := profile[len(profile)-1]
 
 	Qch := (W * H * Vu) / 2.0 * F
+	Q := density * Qch * 3600
 
-	Q := density * F * Qch * 3600 // кг/ч
-
+	// TODO: надо норм посчитать, по настоящему
 	calcTimeMs := input.Steps * 2
 	memoryBytes := input.Steps * 4096
 
