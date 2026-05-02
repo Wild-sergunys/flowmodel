@@ -72,95 +72,29 @@
         responsive: true, 
         maintainAspectRatio: false, 
         animation: false,
-        interaction: {
-          mode: 'index',
-          intersect: false,
-        },
+        interaction: { mode: 'index', intersect: false },
         plugins: { 
-          legend: { 
-            labels: { 
-              font: { family: 'Courier New' },
-              usePointStyle: true,
-            } 
-          },
-          tooltip: {
-            callbacks: {
-              title: function(items) {
-                return 'Координата канала: ' + items[0].label + ' м';
-              },
-              label: function(item) {
-                return item.dataset.label + ': ' + item.raw;
-              }
-            }
-          }
+          legend: { labels: { font: { family: 'Courier New' }, usePointStyle: true } }
         },
         scales: {
-          x: { 
-            title: { 
-              display: true, 
-              text: 'Координата канала, м',
-              font: { family: 'Courier New', weight: 'bold' }
-            }, 
-            grid: { color: '#1a1a1a' } 
-          },
-          y: { 
-            type: 'linear', 
-            position: 'left', 
-            title: { 
-              display: true, 
-              text: 'Температура, °C',
-              font: { family: 'Courier New', weight: 'bold' }
-            }, 
-            grid: { color: '#1a1a1a' } 
-          },
-          y1: { 
-            type: 'linear', 
-            position: 'right', 
-            title: { 
-              display: true, 
-              text: 'Вязкость, Па·с',
-              font: { family: 'Courier New', weight: 'bold' }
-            }, 
-            grid: { drawOnChartArea: false }, 
-            reverse: false 
-          }
+          x: { title: { display: true, text: 'Координата канала, м' } },
+          y: { type: 'linear', position: 'left', title: { display: true, text: 'Температура, °C' } },
+          y1: { type: 'linear', position: 'right', title: { display: true, text: 'Вязкость, Па·с' }, grid: { drawOnChartArea: false } }
         }
       }
     });
   }
 
-  function calculateProductivity(w, h, vu, eta0, eta) {
-    const safeEta = Number(eta) || 1;
-    return ((w * h * vu) / 2) * (eta0 / safeEta);
-  }
-
-  function interpolateViscosityByTemperature(profile, temperature) {
-    const points = profile
-      .filter(p => Number.isFinite(p.temperature) && Number.isFinite(p.viscosity))
-      .slice()
-      .sort((a, b) => a.temperature - b.temperature);
-
-    if (!points.length) return 1;
-    if (temperature <= points[0].temperature) return points[0].viscosity;
-    if (temperature >= points[points.length - 1].temperature) return points[points.length - 1].viscosity;
-
-    for (let i = 1; i < points.length; i++) {
-      const left = points[i - 1];
-      const right = points[i];
-      if (temperature <= right.temperature) {
-        const span = right.temperature - left.temperature || 1;
-        const ratio = (temperature - left.temperature) / span;
-        return left.viscosity + ratio * (right.viscosity - left.viscosity);
-      }
-    }
-
-    return points[points.length - 1].viscosity;
-  }
-
-  function render3DChart(profile, input) {
+  // Новая функция отрисовки, принимающая готовые данные с сервера
+  function render3DChart(surfaceData, baseInput, baseViscosity) {
     const container = document.getElementById('chart3d');
     container.innerHTML = '';
     
+    if (!surfaceData || !surfaceData.points || surfaceData.points.length === 0) {
+      container.innerHTML = '<p>Не удалось загрузить данные для 3D графика</p>';
+      return;
+    }
+
     const width = container.clientWidth || 800;
     const height = 500;
 
@@ -181,62 +115,45 @@
     controls.dampingFactor = 0.05;
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.8;
-    controls.enableZoom = true;
-    controls.target.set(0.5, 0.5, 0.5);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight1.position.set(1, 2, 1);
-    scene.add(dirLight1);
-    const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
-    dirLight2.position.set(-1, 1, -1);
-    scene.add(dirLight2);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(1, 2, 1);
+    scene.add(dirLight);
 
-    const w = Number(input.w) || 0;
-    const h = Number(input.h) || 0;
-    const baseVu = Math.max(Number(input.vu) || 0, 0.0001);
-    const baseTu = Number(input.tu) || 0;
-    const eta0 = Number(profile[0]?.viscosity) || 1;
+    // Извлечение параметров сетки
+    const points = surfaceData.points;
+    const vuSet = [...new Set(points.map(p => p.vu))].sort((a,b)=>a-b);
+    const tuSet = [...new Set(points.map(p => p.tu))].sort((a,b)=>a-b);
+    const vuSteps = vuSet.length;
+    const tuSteps = tuSet.length;
 
-    const tempValues = profile.map(p => Number(p.temperature)).filter(Number.isFinite);
-    const profileMinTu = Math.min(...tempValues, baseTu);
-    const profileMaxTu = Math.max(...tempValues, baseTu);
-    const minTu = profileMinTu === profileMaxTu ? baseTu - 10 : profileMinTu;
-    const maxTu = profileMinTu === profileMaxTu ? baseTu + 10 : profileMaxTu;
-    const minVu = Math.max(baseVu * 0.5, 0.0001);
-    const maxVu = Math.max(baseVu * 1.5, minVu + 0.0001);
+    const minVu = vuSet[0];
+    const maxVu = vuSet[vuSteps - 1];
+    const minTu = tuSet[0];
+    const maxTu = tuSet[tuSteps - 1];
 
-    const vuSteps = 24;
-    const tuSteps = 24;
-    const grid = [];
-    let minQ = Infinity;
-    let maxQ = -Infinity;
+    let minEta = Infinity;
+    let maxEta = -Infinity;
+    points.forEach(p => {
+      minEta = Math.min(minEta, p.viscosity);
+      maxEta = Math.max(maxEta, p.viscosity);
+    });
 
-    for (let i = 0; i < vuSteps; i++) {
-      const vu = minVu + (i / (vuSteps - 1)) * (maxVu - minVu);
-      const row = [];
-      for (let j = 0; j < tuSteps; j++) {
-        const tu = minTu + (j / (tuSteps - 1)) * (maxTu - minTu);
-        const eta = interpolateViscosityByTemperature(profile, tu);
-        const q = calculateProductivity(w, h, vu, eta0, eta);
-        row.push({ vu, tu, q });
-        minQ = Math.min(minQ, q);
-        maxQ = Math.max(maxQ, q);
-      }
-      grid.push(row);
-    }
-    
     const vertices = [];
     const colors = [];
     const indices = [];
 
+    // Построение сетки (предполагается, что точки отсортированы vu, затем tu)
     for (let i = 0; i < vuSteps; i++) {
       for (let j = 0; j < tuSteps; j++) {
-        const point = grid[i][j];
+        const point = points[i * tuSteps + j];
         const x = (point.vu - minVu) / (maxVu - minVu || 1);
         const y = (point.tu - minTu) / (maxTu - minTu || 1);
-        const z = (point.q - minQ) / (maxQ - minQ || 1);
-        const color = new THREE.Color().setHSL(0.68 - z * 0.55, 0.85, 0.52);
+        const z = (point.viscosity - minEta) / (maxEta - minEta || 1);
+        
+        // Цветовая шкала: от синего (низкая вязкость) до красного (высокая)
+        const color = new THREE.Color().setHSL(0.66 * (1 - z), 0.85, 0.52);
         vertices.push(x, y, z);
         colors.push(color.r, color.g, color.b);
       }
@@ -259,79 +176,57 @@
     geom.computeVertexNormals();
     
     const mat = new THREE.MeshPhongMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.82,
-      side: THREE.DoubleSide
+      vertexColors: true, transparent: true, opacity: 0.85, side: THREE.DoubleSide
     });
-    
-    const mesh = new THREE.Mesh(geom, mat);
-    scene.add(mesh);
+    scene.add(new THREE.Mesh(geom, mat));
 
-    const currentEta = interpolateViscosityByTemperature(profile, baseTu);
-    const currentQ = calculateProductivity(w, h, baseVu, eta0, currentEta);
+    // Маркер базового расчета
+    const markerX = (baseInput.vu - minVu) / (maxVu - minVu || 1);
+    const markerY = (baseInput.tu - minTu) / (maxTu - minTu || 1);
+    const markerZ = (baseViscosity - minEta) / (maxEta - minEta || 1);
+
     const marker = new THREE.Mesh(
-      new THREE.SphereGeometry(0.035, 24, 24),
-      new THREE.MeshPhongMaterial({ color: 0xff3c8e, emissive: 0x220011 })
+      new THREE.SphereGeometry(0.04, 24, 24),
+      new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x222222 })
     );
+    // Защита от вылета маркера за пределы куба, если базовые значения вне сетки
     marker.position.set(
-      (baseVu - minVu) / (maxVu - minVu || 1),
-      (baseTu - minTu) / (maxTu - minTu || 1),
-      (currentQ - minQ) / (maxQ - minQ || 1)
+      Math.max(0, Math.min(1, markerX)),
+      Math.max(0, Math.min(1, markerY)),
+      Math.max(0, Math.min(1, markerZ))
     );
     scene.add(marker);
+    scene.add(new THREE.AxesHelper(1.5));
 
-    const axesHelper = new THREE.AxesHelper(1.5);
-    scene.add(axesHelper);
-
-    function createLabel(text, color, position, fontSize = 18) {
+    // Подписи осей
+    function createLabel(text, color, position, fontSize = 16) {
       const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 48;
+      canvas.width = 160; canvas.height = 48;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = color;
-      ctx.font = `Bold ${fontSize}px 'Courier New'`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, 64, 24);
-      
-      const texture = new THREE.CanvasTexture(canvas);
-      const material = new THREE.SpriteMaterial({ map: texture });
-      const sprite = new THREE.Sprite(material);
+      ctx.fillStyle = color; ctx.font = `Bold ${fontSize}px 'Courier New'`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, 80, 24);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
       sprite.position.copy(position);
-      sprite.scale.set(0.4, 0.15, 1);
+      sprite.scale.set(0.5, 0.15, 1);
       scene.add(sprite);
     }
 
-    createLabel('Vu (m/s)', '#3366cc', new THREE.Vector3(1.3, -0.1, -0.1), 18);
-    createLabel('Tu (°C)', '#ff3c8e', new THREE.Vector3(-0.1, 1.3, -0.1), 18);
-    createLabel('Q (м³/с)', '#c8ff00', new THREE.Vector3(-0.1, -0.1, 1.3), 18);
+    createLabel('Vu (м/с)', '#3366cc', new THREE.Vector3(1.3, -0.1, -0.1));
+    createLabel('Tu (°C)', '#ff3c8e', new THREE.Vector3(-0.1, 1.3, -0.1));
+    createLabel('Вязкость (Па·с)', '#009900', new THREE.Vector3(-0.1, -0.1, 1.3)); // Ось Z теперь Вязкость
 
-    [0, 0.25, 0.5, 0.75, 1.0].forEach(t => {
-      createLabel((minVu + t * (maxVu - minVu)).toFixed(2), '#3366cc', new THREE.Vector3(t, -0.12, -0.12), 12);
-    });
+    // Отрисовка значений на краях осей
+    [0, 1].forEach(t => createLabel((minVu + t * (maxVu - minVu)).toFixed(2), '#3366cc', new THREE.Vector3(t, -0.12, -0.12), 12));
+    [0, 1].forEach(t => createLabel((minTu + t * (maxTu - minTu)).toFixed(0), '#ff3c8e', new THREE.Vector3(-0.15, t, -0.15), 12));
+    [0, 1].forEach(t => createLabel((minEta + t * (maxEta - minEta)).toFixed(0), '#009900', new THREE.Vector3(-0.15, -0.15, t), 12));
 
-    [0, 0.25, 0.5, 0.75, 1.0].forEach(t => {
-      createLabel((minTu + t * (maxTu - minTu)).toFixed(0), '#ff3c8e', new THREE.Vector3(-0.15, t, -0.15), 12);
-    });
-
-    [0, 0.25, 0.5, 0.75, 1.0].forEach(t => {
-      const val = minQ + t * (maxQ - minQ);
-      createLabel(val.toExponential(2), '#c8ff00', new THREE.Vector3(-0.15, -0.15, t), 12);
-    });
-
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    }
+    function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
     animate();
 
     window.addEventListener('resize', () => {
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      renderer.setSize(w, h);
-      camera.aspect = w / h;
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
     });
   }
@@ -354,21 +249,39 @@
         vu: parseFloat(formData.get('vu')), 
         tu: parseFloat(formData.get('tu')),
         material_id: parseInt(formData.get('material_id')), 
-        steps: parseInt(formData.get('steps'))
+        steps: parseInt(formData.get('steps')) || 100
       };
 
       try {
+        // 1. Запрос базового расчета для 2D-графиков и таблицы
         const result = await FlowModelAPI.client.calculation.calculate(data);
-        const eta0 = Number(result.profile?.[0]?.viscosity) || 1;
-        const eta = Number(result.viscosity) || Number(result.profile?.[result.profile.length - 1]?.viscosity) || eta0;
-        const productivity = calculateProductivity(data.w, data.h, data.vu, eta0, eta);
-        document.getElementById('productivity').textContent = productivity.toFixed(4) + ' кг/ч';
+        
+        document.getElementById('productivity').textContent = result.productivity.toFixed(4) + ' кг/ч';
         document.getElementById('temperature').textContent = result.temperature.toFixed(1);
         document.getElementById('viscosity').textContent = result.viscosity.toFixed(1);
+        
         resultsDiv.style.display = 'block';
         renderProfileTable(result.profile);
         render2DChart(result.profile);
-        render3DChart(result.profile, data);
+
+        // 2. Подготовка параметров для сетки 3D-графика
+        // Берем разброс +/- 50% от скорости и +/- 20 градусов от температуры
+        const surfacePayload = {
+          ...data,
+          vu_min: Math.max(data.vu * 0.5, 0.01),
+          vu_max: data.vu * 1.5,
+          vu_steps: 24, // Сетка 24x24 (576 точек) оптимальна для производительности
+          tu_min: Math.max(data.tu - 20, 0),
+          tu_max: data.tu + 20,
+          tu_steps: 24
+        };
+
+        // 3. Запрос данных для 3D-графика
+        const surfaceResult = await FlowModelAPI.client.calculation.surface(surfacePayload);
+        
+        // 4. Отрисовка 3D
+        render3DChart(surfaceResult, data, result.viscosity);
+
       } catch (e) {
         errorDiv.textContent = `Ошибка: ${e.message}`;
         if (e instanceof FlowModelAPI.AuthError) window.location.href = '/login';

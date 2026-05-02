@@ -151,6 +151,7 @@
       calculation: {
         validate: (payload) => post("/api/validate", payload),
         calculate: (payload) => post("/api/calculate", payload),
+        surface: (payload) => post("/api/calculate/surface", payload),
       },
       results: {
         list: () => get("/api/results"),
