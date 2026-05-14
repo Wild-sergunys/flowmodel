@@ -51,7 +51,6 @@ func (h *CalculationHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Берём userID из JWT (middleware уже проверил токен)
 	claims, ok := r.Context().Value(middleware.UserContextKey).(jwt.MapClaims)
 	if !ok {
 		WriteError(w, http.StatusUnauthorized, "unauthorized", "Не авторизован", nil)
@@ -72,6 +71,39 @@ func (h *CalculationHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка расчёта", nil)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func (h *CalculationHandler) CalculateSurface(w http.ResponseWriter, r *http.Request) {
+	var input model.CalculationSurfaceInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		WriteError(w, http.StatusBadRequest, "validation_error", "Неверный формат запроса", nil)
+		return
+	}
+
+	_, ok := r.Context().Value(middleware.UserContextKey).(jwt.MapClaims)
+	if !ok {
+		WriteError(w, http.StatusUnauthorized, "unauthorized", "Не авторизован", nil)
+		return
+	}
+
+	result, err := h.calcService.CalculateSurface(r.Context(), &input)
+	if err != nil {
+		if verr, ok := err.(*service.ValidationError); ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":   "validation_error",
+				"message": "Ошибка валидации",
+				"details": map[string]interface{}{"fields": verr.Errors},
+			})
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка расчёта поверхности", nil)
 		return
 	}
 

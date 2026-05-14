@@ -15,19 +15,30 @@ const UserContextKey contextKey = "user"
 func AuthMiddleware(jwtKey []byte) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
+			var tokenString string
+
+			// Пробуем получить токен из cookie
+			cookie, err := r.Cookie("flowmodel_token")
+			if err == nil {
+				tokenString = cookie.Value
+			}
+
+			// Fallback: пробуем из Authorization header (для обратной совместимости)
+			if tokenString == "" {
+				authHeader := r.Header.Get("Authorization")
+				if authHeader != "" {
+					parts := strings.Split(authHeader, " ")
+					if len(parts) == 2 && parts[0] == "Bearer" {
+						tokenString = parts[1]
+					}
+				}
+			}
+
+			if tokenString == "" {
 				http.Error(w, `{"error":"unauthorized","message":"Требуется авторизация"}`, http.StatusUnauthorized)
 				return
 			}
 
-			parts := strings.Split(authHeader, " ")
-			if len(parts) != 2 || parts[0] != "Bearer" {
-				http.Error(w, `{"error":"unauthorized","message":"Неверный формат токена"}`, http.StatusUnauthorized)
-				return
-			}
-
-			tokenString := parts[1]
 			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 				return jwtKey, nil
 			})

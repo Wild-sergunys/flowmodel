@@ -16,7 +16,7 @@
       try {
         const result = await FlowModelAPI.client.auth.login(data);
         
-        sessionStorage.setItem('flowmodel_token', result.token);
+        // Сохраняем только роль (токен в cookie)
         sessionStorage.setItem('flowmodel_role', result.role);
         
         const returnTo = sessionStorage.getItem('flowmodel:returnTo') || '/';

@@ -21,13 +21,17 @@
   }
 
   async function checkAdmin() {
-    const token = sessionStorage.getItem('flowmodel_token');
-    if (!token) { window.location.href = '/login'; return false; }
     try {
       const user = await FlowModelAPI.client.auth.me();
-      if (user.role !== 'admin') { window.location.href = '/cabinet'; return false; }
+      if (user.role !== 'admin') { 
+        window.location.href = '/cabinet'; 
+        return false; 
+      }
       return user;
-    } catch (e) { window.location.href = '/login'; return false; }
+    } catch (e) { 
+      window.location.href = '/login'; 
+      return false; 
+    }
   }
 
   let currentUserId = null;

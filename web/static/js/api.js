@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const DEFAULT_CREDENTIALS = "same-origin";
+  const DEFAULT_CREDENTIALS = "include"; 
 
   class ApiError extends Error {
     constructor(message, response, data) {
@@ -25,10 +25,6 @@
       super(message, response, data);
       this.name = "ForbiddenError";
     }
-  }
-
-  function trimSlashes(value) {
-    return value.replace(/^\/+|\/+$/g, "");
   }
 
   function joinURL(baseURL, path) {
@@ -91,7 +87,12 @@
   }
 
   function createClient(options) {
-    const settings = Object.assign({ baseURL: "", credentials: DEFAULT_CREDENTIALS, onUnauthorized: undefined, onForbidden: undefined }, options || {});
+    const settings = Object.assign({ 
+      baseURL: "", 
+      credentials: DEFAULT_CREDENTIALS, 
+      onUnauthorized: undefined, 
+      onForbidden: undefined 
+    }, options || {});
 
     async function send(path, options) {
       const requestOptions = Object.assign({ method: "GET", headers: undefined, body: undefined, responseType: "json" }, options || {});
@@ -101,10 +102,6 @@
         headers: buildHeaders(requestOptions.headers, requestOptions.body),
       };
 
-      const token = sessionStorage.getItem('flowmodel_token');
-      if (token) {
-        fetchOptions.headers.set('Authorization', 'Bearer ' + token);
-      }
 
       if (requestOptions.body !== undefined) {
         fetchOptions.body = requestOptions.body instanceof FormData ? requestOptions.body : JSON.stringify(requestOptions.body);
@@ -142,7 +139,6 @@
     return {
       request,
       auth: {
-        register: (payload) => post("/api/auth/register", payload),
         login: (payload) => post("/api/auth/login", payload),
         logout: () => post("/api/auth/logout"),
         me: () => get("/api/auth/me"),
@@ -160,7 +156,7 @@
         download: async (id) => {
           const result = await send("/api/results/" + encodePathPart(id) + "/download", 
           { method: "GET", responseType: "blob" });
-        return { blob: result.data, filename: getFilename(result.response) || "report_" + encodePathPart(id)};
+          return { blob: result.data, filename: getFilename(result.response) || "report_" + encodePathPart(id) };
         },
       },
       admin: {
@@ -197,6 +193,6 @@
     ApiError, AuthError, ForbiddenError,
     createClient,
     client: createClient(),
-    utils: { trimSlashes, getFilename },
+    utils: { getFilename },
   };
 })();

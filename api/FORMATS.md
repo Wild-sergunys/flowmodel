@@ -68,7 +68,6 @@
 
 ### Успешный логин (200)
 {
-  "token": "eyJhbGciOiJIUzI1NiIs...",
   "role": "admin"
 }
 
@@ -90,16 +89,24 @@
 ### Успешный расчёт (200)
 {
   "id": 42,
-  "productivity": 0.001875,
-  "temperature": 158.7,
-  "viscosity": 6200.5,
+  "productivity": 9081.01,
+  "temperature": 170.0,
+  "viscosity": 784.8,
   "profile": [
-    {"x": 0, "temperature": 145.0, "viscosity": 12000.0}
+    {"x": 0, "temperature": 145.0, "viscosity": 8526.1}
   ],
   "metrics": {
-    "calc_time_ms": 42,
-    "memory_used_bytes": 2048000
+    "calc_time_ms": 2,
+    "memory_used_bytes": 5000
   }
+}
+
+### Расчёт 3D поверхности (200)
+{
+  "points": [
+    {"vu": 0.75, "tu": 130, "viscosity": 12450.3, "productivity": 6251.4},
+    {"vu": 0.75, "tu": 131.7, "viscosity": 12120.1, "productivity": 6251.4}
+  ]
 }
 
 ### Ошибка валидации расчёта (400)

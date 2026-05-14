@@ -15,8 +15,10 @@ import (
 )
 
 type ResultsHandler struct {
-	calcRepo     repository.CalculationRepository
-	materialRepo repository.MaterialRepository
+	calcRepo          repository.CalculationRepository
+	materialRepo      repository.MaterialRepository
+	paramRepo         repository.ParameterRepository
+	materialParamRepo repository.MaterialParameterRepository
 }
 
 func NewResultsHandler(calcRepo repository.CalculationRepository, materialRepo repository.MaterialRepository) *ResultsHandler {
@@ -24,6 +26,14 @@ func NewResultsHandler(calcRepo repository.CalculationRepository, materialRepo r
 		calcRepo:     calcRepo,
 		materialRepo: materialRepo,
 	}
+}
+
+func (h *ResultsHandler) SetParamRepo(paramRepo repository.ParameterRepository) {
+	h.paramRepo = paramRepo
+}
+
+func (h *ResultsHandler) SetMaterialParamRepo(materialParamRepo repository.MaterialParameterRepository) {
+	h.materialParamRepo = materialParamRepo
 }
 
 func getUserID(r *http.Request) (int, bool) {
@@ -156,9 +166,21 @@ func (h *ResultsHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Получаем информацию о материале
 	materialName := "неизвестный"
 	if material, err := h.materialRepo.FindByID(r.Context(), calc.MaterialID); err == nil && material != nil {
 		materialName = material.Name
+	}
+
+	// Получаем параметры материала
+	materialParams := make(map[string]interface{})
+	if h.materialParamRepo != nil {
+		params, err := h.materialParamRepo.FindByMaterialID(r.Context(), calc.MaterialID)
+		if err == nil {
+			for k, v := range params {
+				materialParams[k] = v
+			}
+		}
 	}
 
 	var inputData, resultData map[string]interface{}
@@ -166,12 +188,13 @@ func (h *ResultsHandler) Download(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal([]byte(calc.ResultJSON), &resultData)
 
 	calcData := map[string]interface{}{
-		"id":            calc.ID,
-		"material_id":   calc.MaterialID,
-		"material_name": materialName,
-		"created_at":    calc.CreatedAt,
-		"input":         inputData,
-		"result":        resultData,
+		"id":              calc.ID,
+		"material_id":     calc.MaterialID,
+		"material_name":   materialName,
+		"material_params": materialParams,
+		"created_at":      calc.CreatedAt,
+		"input":           inputData,
+		"result":          resultData,
 	}
 
 	excelData, err := service.GenerateExcel(calcData)

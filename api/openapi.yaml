@@ -14,7 +14,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT токен, полученный при входе
+      description: JWT токен, полученный при входе (хранится в HttpOnly cookie)
 
   schemas:
     # Аутентификация
@@ -39,9 +39,6 @@ components:
     LoginResponse:
       type: object
       properties:
-        token:
-          type: string
-          description: JWT токен для авторизации
         role:
           type: string
           enum: [researcher, admin]
@@ -57,7 +54,6 @@ components:
         - vu
         - tu
         - material_id
-        - t0
         - steps
       properties:
         w:
@@ -100,19 +96,83 @@ components:
           minimum: 1
           description: Идентификатор материала из справочника
           example: 1
-        t0:
-          type: number
-          format: double
-          minimum: 0.0
-          maximum: 500.0
-          description: Начальная температура материала (температура плавления), °С
-          example: 145.0
         steps:
           type: integer
           minimum: 10
           maximum: 100000
           description: Количество шагов интегрирования по длине канала
           example: 1000
+
+    CalculationSurfaceInput:
+      type: object
+      required:
+        - w
+        - h
+        - l
+        - material_id
+        - steps
+        - vu_min
+        - vu_max
+        - vu_steps
+        - tu_min
+        - tu_max
+        - tu_steps
+      properties:
+        w:
+          type: number
+          format: double
+          description: Ширина канала, м
+          example: 0.25
+        h:
+          type: number
+          format: double
+          description: Глубина канала, м
+          example: 0.01
+        l:
+          type: number
+          format: double
+          description: Длина канала, м
+          example: 9.5
+        material_id:
+          type: integer
+          description: Идентификатор материала
+          example: 1
+        steps:
+          type: integer
+          description: Количество шагов интегрирования по длине (для каждой точки)
+          example: 100
+        vu_min:
+          type: number
+          format: double
+          description: Минимальная скорость крышки для графика, м/с
+          example: 0.75
+        vu_max:
+          type: number
+          format: double
+          description: Максимальная скорость крышки для графика, м/с
+          example: 2.25
+        vu_steps:
+          type: integer
+          minimum: 2
+          maximum: 50
+          description: Количество точек по оси скорости (рекомендуется 20-30)
+          example: 24
+        tu_min:
+          type: number
+          format: double
+          description: Минимальная температура крышки для графика, °С
+          example: 130
+        tu_max:
+          type: number
+          format: double
+          description: Максимальная температура крышки для графика, °С
+          example: 170
+        tu_steps:
+          type: integer
+          minimum: 2
+          maximum: 50
+          description: Количество точек по оси температуры (рекомендуется 20-30)
+          example: 24
 
     Point:
       type: object
@@ -134,18 +194,43 @@ components:
           description: Динамическая вязкость материала в сечении, Па·с
           example: 8450.2
 
+    SurfacePoint:
+      type: object
+      description: Точка 3D поверхности
+      properties:
+        vu:
+          type: number
+          format: double
+          description: Скорость крышки, м/с
+          example: 1.5
+        tu:
+          type: number
+          format: double
+          description: Температура крышки, °С
+          example: 150
+        viscosity:
+          type: number
+          format: double
+          description: Вязкость продукта на выходе, Па·с
+          example: 784.8
+        productivity:
+          type: number
+          format: double
+          description: Производительность, кг/ч
+          example: 9081.01
+
     Metrics:
       type: object
       description: Показатели экономичности расчёта
       properties:
         calc_time_ms:
           type: integer
-          description: Время расчёта в миллисекундах
-          example: 42
+          description: Реальное время выполнения расчёта в миллисекундах
+          example: 2
         memory_used_bytes:
           type: integer
-          description: Объём использованной оперативной памяти в байтах
-          example: 2048000
+          description: Реальный объём использованной оперативной памяти в байтах
+          example: 5000
 
     CalculationResult:
       type: object
@@ -158,18 +243,18 @@ components:
         productivity:
           type: number
           format: double
-          description: Объёмный расход (производительность), кг/ч
-          example: 0.001875
+          description: Производительность, кг/ч
+          example: 9081.01
         temperature:
           type: number
           format: double
           description: Температура продукта на выходе из канала, °С
-          example: 158.7
+          example: 170.0
         viscosity:
           type: number
           format: double
           description: Вязкость продукта на выходе из канала, Па·с
-          example: 6200.5
+          example: 784.8
         profile:
           type: array
           description: Распределения температуры и вязкости по длине канала
@@ -177,6 +262,16 @@ components:
             $ref: '#/components/schemas/Point'
         metrics:
           $ref: '#/components/schemas/Metrics'
+
+    CalculationSurfaceResult:
+      type: object
+      description: Результат расчёта 3D поверхности
+      properties:
+        points:
+          type: array
+          description: Массив точек (плоский), отсортированный сначала по vu, затем по tu
+          items:
+            $ref: '#/components/schemas/SurfacePoint'
 
     # Справочники
     Material:
@@ -470,7 +565,7 @@ paths:
       summary: Вход в систему
       description: |
         Аутентификация пользователя по логину и паролю.
-        Возвращает JWT токен для авторизации.
+        Устанавливает HttpOnly cookie с JWT токеном.
         Защищено rate-limiting: 5 попыток за 15 минут, затем блокировка на 15 минут.
       tags: [Auth]
       requestBody:
@@ -512,7 +607,7 @@ paths:
       summary: Выход из системы
       description: |
         Завершение сеанса работы.
-        Клиент должен удалить JWT токен.
+        Удаляет HttpOnly cookie с токеном.
       tags: [Auth]
       security:
         - bearerAuth: []
@@ -593,7 +688,6 @@ paths:
         Возвращает распределения температуры и вязкости по длине канала,
         а также итоговые показатели процесса (производительность в кг/ч).
         Результаты автоматически сохраняются в истории расчётов.
-        Поддерживает до 3 повторных попыток при ошибках БД.
       tags: [Calculation]
       security:
         - bearerAuth: []
@@ -624,6 +718,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  # РАСЧЁТ 3D ПОВЕРХНОСТИ
+  /api/calculate/surface:
+    post:
+      summary: Расчёт 3D-поверхности характеристик
+      description: |
+        Многократно выполняет расчёт математической модели для сетки параметров (Vu, Tu).
+        Возвращает плоский массив точек для построения 3D-графика.
+        Расчёт выполняется параллельно с использованием пула воркеров.
+      tags: [Calculation]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculationSurfaceInput'
+      responses:
+        '200':
+          description: Матрица результатов расчёта
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculationSurfaceResult'
+        '400':
+          description: Ошибка валидации
+        '401':
+          description: Не авторизован
 
   # ИСТОРИЯ РАСЧЁТОВ
   /api/results:

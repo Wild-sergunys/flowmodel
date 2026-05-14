@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 
 	"github.com/Wild-sergunys/flowmodel/internal/middleware"
 	"github.com/Wild-sergunys/flowmodel/internal/service"
@@ -20,8 +21,7 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token string `json:"token"`
-	Role  string `json:"role"`
+	Role string `json:"role"`
 }
 
 func NewAuthHandler(authService *service.AuthService) *AuthHandler {
@@ -64,14 +64,37 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		loginRateLimiter.Reset(ip)
 	}
 
+	// HttpOnly cookie
+	isProduction := os.Getenv("ENV") == "production"
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "flowmodel_token",
+		Value:    token,
+		HttpOnly: true,                    // Недоступен для JavaScript
+		Secure:   isProduction,            // true только в production (HTTPS)
+		SameSite: http.SameSiteStrictMode, // Защита от CSRF
+		Path:     "/",
+		MaxAge:   86400, // 24 часа
+	})
+
+	// Возвращаем только роль
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(LoginResponse{
-		Token: token,
-		Role:  user.Role,
+		Role: user.Role,
 	})
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "flowmodel_token",
+		Value:    "",
+		HttpOnly: true,
+		Secure:   os.Getenv("ENV") == "production",
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
+		MaxAge:   -1,
+	})
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Выход выполнен успешно"})
 }

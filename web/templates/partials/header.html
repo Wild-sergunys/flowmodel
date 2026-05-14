@@ -11,8 +11,7 @@
 </header>
 <script>
 (function() {
-  function updateNav() {
-    const token = sessionStorage.getItem('flowmodel_token');
+  async function updateNav() {
     const role = sessionStorage.getItem('flowmodel_role');
     const currentPath = window.location.pathname;
     
@@ -22,7 +21,19 @@
     const cabinetLink = document.getElementById('cabinet-link');
     const adminLink = document.getElementById('admin-link');
     
-    if (!token) {
+    let isAuthenticated = false;
+    try {
+      const response = await fetch('/api/auth/me', { credentials: 'include' });
+      isAuthenticated = response.ok;
+      if (!isAuthenticated) {
+        sessionStorage.removeItem('flowmodel_role');
+      }
+    } catch (e) {
+      isAuthenticated = false;
+      sessionStorage.removeItem('flowmodel_role');
+    }
+    
+    if (!isAuthenticated) {
       if (homeLink) homeLink.style.display = 'none';
       if (loginLink) loginLink.style.display = 'inline';
       if (logoutBtn) logoutBtn.style.display = 'none';
@@ -54,14 +65,15 @@
   }
   
   document.addEventListener('DOMContentLoaded', updateNav);
-  window.addEventListener('storage', updateNav);
   
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async (e) => {
       e.preventDefault();
-      try { await FlowModelAPI.client.auth.logout(); } catch (e) {}
-      sessionStorage.clear();
+      try { 
+        await FlowModelAPI.client.auth.logout(); 
+      } catch (e) {}
+      sessionStorage.removeItem('flowmodel_role');
       window.location.href = '/login';
     });
   }

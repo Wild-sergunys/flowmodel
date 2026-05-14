@@ -1,7 +1,17 @@
 (function() {
+  async function checkAuth() {
+    try {
+      await FlowModelAPI.client.auth.me();
+      return true;
+    } catch (e) {
+      window.location.href = '/login';
+      return false;
+    }
+  }
+
   async function loadHistory() {
-    const token = sessionStorage.getItem('flowmodel_token');
-    if (!token) { window.location.href = '/login'; return; }
+    const isAuth = await checkAuth();
+    if (!isAuth) return;
     
     let tbody = document.querySelector('#history-table tbody');
     if (!tbody) {
@@ -38,7 +48,6 @@
           try {
             const report = await FlowModelAPI.client.results.report(btn.dataset.id);
             
-            // Форматируем для красивого показа
             let text = '';
             text += '=== ВХОДНЫЕ ПАРАМЕТРЫ ===\n';
             if (report.input) {

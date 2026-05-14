@@ -5,9 +5,17 @@
   
   let chart2d = null;
 
+  async function checkAuth() {
+    try {
+      await FlowModelAPI.client.auth.me();
+      return true;
+    } catch (e) {
+      window.location.href = '/login';
+      return false;
+    }
+  }
+
   async function loadMaterials() {
-    const token = sessionStorage.getItem('flowmodel_token');
-    if (!token) return;
     try {
       const materials = await FlowModelAPI.client.materials.list();
       const select = document.querySelector('select[name="material_id"]');
@@ -85,7 +93,6 @@
     });
   }
 
-  // Новая функция отрисовки, принимающая готовые данные с сервера
   function render3DChart(surfaceData, baseInput, baseViscosity) {
     const container = document.getElementById('chart3d');
     container.innerHTML = '';
@@ -102,7 +109,7 @@
     scene.background = new THREE.Color('#f2ede8');
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(1.8, 1.8, 2.4);
+    camera.position.set(1.8, 1.5, 2.2);
     camera.lookAt(0.5, 0.5, 0.5);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -144,16 +151,21 @@
     const colors = [];
     const indices = [];
 
-    // Построение сетки (предполагается, что точки отсортированы vu, затем tu)
+    // X = Vu (скорость крышки)
+    // Y = Вязкость (зависимый параметр)
+    // Z = Tu (температура крышки)
     for (let i = 0; i < vuSteps; i++) {
       for (let j = 0; j < tuSteps; j++) {
         const point = points[i * tuSteps + j];
+        // X - скорость крышки (Vu)
         const x = (point.vu - minVu) / (maxVu - minVu || 1);
-        const y = (point.tu - minTu) / (maxTu - minTu || 1);
-        const z = (point.viscosity - minEta) / (maxEta - minEta || 1);
+        // Y - вязкость (высота)
+        const y = (point.viscosity - minEta) / (maxEta - minEta || 1);
+        // Z - температура крышки (Tu)
+        const z = (point.tu - minTu) / (maxTu - minTu || 1);
         
         // Цветовая шкала: от синего (низкая вязкость) до красного (высокая)
-        const color = new THREE.Color().setHSL(0.66 * (1 - z), 0.85, 0.52);
+        const color = new THREE.Color().setHSL(0.66 * (1 - y), 0.85, 0.52);
         vertices.push(x, y, z);
         colors.push(color.r, color.g, color.b);
       }
@@ -182,14 +194,13 @@
 
     // Маркер базового расчета
     const markerX = (baseInput.vu - minVu) / (maxVu - minVu || 1);
-    const markerY = (baseInput.tu - minTu) / (maxTu - minTu || 1);
-    const markerZ = (baseViscosity - minEta) / (maxEta - minEta || 1);
+    const markerY = (baseViscosity - minEta) / (maxEta - minEta || 1);
+    const markerZ = (baseInput.tu - minTu) / (maxTu - minTu || 1);
 
     const marker = new THREE.Mesh(
       new THREE.SphereGeometry(0.04, 24, 24),
       new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x222222 })
     );
-    // Защита от вылета маркера за пределы куба, если базовые значения вне сетки
     marker.position.set(
       Math.max(0, Math.min(1, markerX)),
       Math.max(0, Math.min(1, markerY)),
@@ -198,7 +209,6 @@
     scene.add(marker);
     scene.add(new THREE.AxesHelper(1.5));
 
-    // Подписи осей
     function createLabel(text, color, position, fontSize = 16) {
       const canvas = document.createElement('canvas');
       canvas.width = 160; canvas.height = 48;
@@ -212,14 +222,18 @@
       scene.add(sprite);
     }
 
+    // Оси: X = Vu, Y = Вязкость, Z = Tu
     createLabel('Vu (м/с)', '#3366cc', new THREE.Vector3(1.3, -0.1, -0.1));
-    createLabel('Tu (°C)', '#ff3c8e', new THREE.Vector3(-0.1, 1.3, -0.1));
-    createLabel('Вязкость (Па·с)', '#009900', new THREE.Vector3(-0.1, -0.1, 1.3)); // Ось Z теперь Вязкость
+    createLabel('Вязкость (Па·с)', '#c8ff00', new THREE.Vector3(-0.1, 1.3, -0.1));
+    createLabel('Tu (°C)', '#ff3c8e', new THREE.Vector3(-0.1, -0.1, 1.3));
 
     // Отрисовка значений на краях осей
+    // По оси X (Vu)
     [0, 1].forEach(t => createLabel((minVu + t * (maxVu - minVu)).toFixed(2), '#3366cc', new THREE.Vector3(t, -0.12, -0.12), 12));
-    [0, 1].forEach(t => createLabel((minTu + t * (maxTu - minTu)).toFixed(0), '#ff3c8e', new THREE.Vector3(-0.15, t, -0.15), 12));
-    [0, 1].forEach(t => createLabel((minEta + t * (maxEta - minEta)).toFixed(0), '#009900', new THREE.Vector3(-0.15, -0.15, t), 12));
+    // По оси Y (Вязкость)
+    [0, 1].forEach(t => createLabel((minEta + t * (maxEta - minEta)).toFixed(0), '#c8ff00', new THREE.Vector3(-0.15, t, -0.15), 12));
+    // По оси Z (Tu)
+    [0, 1].forEach(t => createLabel((minTu + t * (maxTu - minTu)).toFixed(0), '#ff3c8e', new THREE.Vector3(-0.15, -0.15, t), 12));
 
     function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
     animate();
@@ -232,14 +246,17 @@
   }
 
   if (form) {
-    if (sessionStorage.getItem('flowmodel_token')) loadMaterials();
+    // Загружаем материалы после проверки авторизации
+    checkAuth().then(() => {
+      loadMaterials();
+    });
     
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorDiv.textContent = '';
       
-      const token = sessionStorage.getItem('flowmodel_token');
-      if (!token) { window.location.href = '/login'; return; }
+      const isAuth = await checkAuth();
+      if (!isAuth) return;
       
       const formData = new FormData(form);
       const data = {
@@ -253,7 +270,6 @@
       };
 
       try {
-        // 1. Запрос базового расчета для 2D-графиков и таблицы
         const result = await FlowModelAPI.client.calculation.calculate(data);
         
         document.getElementById('productivity').textContent = result.productivity.toFixed(4) + ' кг/ч';
@@ -264,22 +280,18 @@
         renderProfileTable(result.profile);
         render2DChart(result.profile);
 
-        // 2. Подготовка параметров для сетки 3D-графика
-        // Берем разброс +/- 50% от скорости и +/- 20 градусов от температуры
         const surfacePayload = {
           ...data,
           vu_min: Math.max(data.vu * 0.5, 0.01),
           vu_max: data.vu * 1.5,
-          vu_steps: 24, // Сетка 24x24 (576 точек) оптимальна для производительности
+          vu_steps: 24,
           tu_min: Math.max(data.tu - 20, 0),
           tu_max: data.tu + 20,
           tu_steps: 24
         };
 
-        // 3. Запрос данных для 3D-графика
         const surfaceResult = await FlowModelAPI.client.calculation.surface(surfacePayload);
         
-        // 4. Отрисовка 3D
         render3DChart(surfaceResult, data, result.viscosity);
 
       } catch (e) {

@@ -61,6 +61,10 @@ func main() {
 	materialParamHandler := handler.NewMaterialParameterHandler(materialParamRepo)
 	calcHandler := handler.NewCalculationHandler(calcService)
 	resultsHandler := handler.NewResultsHandler(calcRepo, materialRepo)
+
+	resultsHandler.SetParamRepo(paramRepo)
+	resultsHandler.SetMaterialParamRepo(materialParamRepo)
+
 	webHandler, err := web.NewHandler()
 	if err != nil {
 		log.Fatal("Ошибка инициализации frontend:", err)
@@ -109,6 +113,7 @@ func main() {
 
 	// Calculation
 	mux.Handle("POST /api/calculate", authMiddleware(http.HandlerFunc(calcHandler.Calculate)))
+	mux.Handle("POST /api/calculate/surface", authMiddleware(http.HandlerFunc(calcHandler.CalculateSurface)))
 
 	// Admin Materials
 	mux.Handle("GET /api/admin/materials", authMiddleware(adminMiddleware(http.HandlerFunc(adminHandler.GetAllMaterials))))
