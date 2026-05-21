@@ -51,6 +51,7 @@ type Point struct {
 type Metrics struct {
 	CalcTimeMs      int `json:"calc_time_ms"`
 	MemoryUsedBytes int `json:"memory_used_bytes"`
+	OperationsCount int `json:"operations_count"`
 }
 
 type CalculationResult struct {

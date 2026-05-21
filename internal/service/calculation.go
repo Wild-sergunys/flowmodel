@@ -223,6 +223,8 @@ func (s *CalculationService) CalculateSurface(ctx context.Context, input *model.
 }
 
 func (s *CalculationService) compute(input *model.CalculationInput, params map[string]float64) *model.CalculationResult {
+	opsCount := 0 // Инициализация счетчика арифметических операций nAO
+
 	rho := getFloatParam(params, "density", 1380)
 	c := getFloatParam(params, "heat_capacity", 2500)
 	T0 := getFloatParam(params, "melting_temp", 145)
@@ -245,44 +247,61 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 
 	const R = 8.314
 
-	// Исправленный расчет коэффициента геометрической формы (Уравнение 11)
 	var F float64
 	if W > 0 && H > 0 {
 		ratio := H / W
+		opsCount++ // деление
+
 		F = 0.125*math.Pow(ratio, 2) - 0.625*ratio + 1.0
+		opsCount += 5 // возведение в степень, умножение (2), вычитание, сложение
+
 		if F < 0.3 {
-			F = 0.3 // Минимальное ограничение для экстремальных геометрий
+			F = 0.3
 		}
 	} else {
 		F = 1.0
 	}
 
-	// Расчет кинематики и расхода
 	gammaDot := Vu / H
-	Qch := (W * H * Vu / 2.0) * F // Уравнение 10
+	opsCount++ // деление
+
+	Qch := (W * H * Vu / 2.0) * F
+	opsCount += 4 // умножение (3), деление
+
 	productivity := rho * Qch * 3600
+	opsCount += 2 // умножение (2)
 
 	dz := L / float64(steps)
+	opsCount++ // деление
+
 	profile := make([]model.Point, 0, steps+1)
 	currentTemp := T0
 
-	// Исправленный знаменатель уравнения теплового баланса (Уравнение 4)
 	denominator := rho * c * Qch
+	opsCount += 2 // умножение (2)
 
 	for i := 0; i <= steps; i++ {
 		z := float64(i) * dz
+		opsCount++ // умножение
+
 		Tk := currentTemp + 273.15
 		Trk := Tr + 273.15
+		opsCount += 2 // сложение (2)
 
-		// Расчет вязкости по Андраде и Оствальду (Уравнение 16)
 		exponent := (Ea / R) * (1.0/Tk - 1.0/Trk)
+		opsCount += 5 // деление (3), вычитание, умножение
+
 		if exponent > 20 {
 			exponent = 20
 		} else if exponent < -20 {
 			exponent = -20
 		}
+
 		mu := mu0 * math.Exp(exponent)
+		opsCount += 2 // вычисление экспоненты, умножение
+
 		viscosity := mu * math.Pow(gammaDot, n-1)
+		opsCount += 3 // вычитание, возведение в степень, умножение
 
 		profile = append(profile, model.Point{
 			X:           z,
@@ -294,14 +313,16 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 			break
 		}
 
-		// Расчет общих тепловых потоков на сечение
-		qGammaTotal := H * W * viscosity * math.Pow(gammaDot, 2) // Диссипация (Уравнение 13)
-		qAlphaTotal := W * alphaU * (Tu - currentTemp)           // Теплоотдача от крышки (Уравнение 14)
+		qGammaTotal := H * W * viscosity * math.Pow(gammaDot, 2)
+		opsCount += 5 // возведение в степень, умножение (4)
 
-		// Численное интегрирование по методу Эйлера на основе Уравнения 4
+		qAlphaTotal := W * alphaU * (Tu - currentTemp)
+		opsCount += 3 // вычитание, умножение (2)
+
 		if denominator > 0 {
 			dT := ((qGammaTotal + qAlphaTotal) / denominator) * dz
 			currentTemp += dT
+			opsCount += 4 // сложение, деление, умножение, сложение
 		}
 	}
 
@@ -315,6 +336,7 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 		Metrics: model.Metrics{
 			CalcTimeMs:      0,
 			MemoryUsedBytes: 0,
+			OperationsCount: opsCount, // В структуре model.Metrics потребуется добавить поле OperationsCount (соответствует n_AO из ТЗ)
 		},
 	}
 }
