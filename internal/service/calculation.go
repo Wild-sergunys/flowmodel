@@ -245,44 +245,43 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 
 	const R = 8.314
 
+	// Исправленный расчет коэффициента геометрической формы (Уравнение 11)
 	var F float64
 	if W > 0 && H > 0 {
-		aspectRatio := H / W
-		if aspectRatio > 1 {
-			aspectRatio = W / H
-		}
-		F = 1.0 - 0.628*aspectRatio
+		ratio := H / W
+		F = 0.125*math.Pow(ratio, 2) - 0.625*ratio + 1.0
 		if F < 0.3 {
-			F = 0.3
+			F = 0.3 // Минимальное ограничение для экстремальных геометрий
 		}
 	} else {
 		F = 1.0
 	}
 
+	// Расчет кинематики и расхода
 	gammaDot := Vu / H
-	dz := L / float64(steps)
-	Qch := (W * H * Vu) / 2.0 * F
+	Qch := (W * H * Vu / 2.0) * F // Уравнение 10
 	productivity := rho * Qch * 3600
 
+	dz := L / float64(steps)
 	profile := make([]model.Point, 0, steps+1)
 	currentTemp := T0
 
-	denominator := rho * c * Vu * H
+	// Исправленный знаменатель уравнения теплового баланса (Уравнение 4)
+	denominator := rho * c * Qch
 
 	for i := 0; i <= steps; i++ {
 		z := float64(i) * dz
 		Tk := currentTemp + 273.15
 		Trk := Tr + 273.15
 
+		// Расчет вязкости по Андраде и Оствальду (Уравнение 16)
 		exponent := (Ea / R) * (1.0/Tk - 1.0/Trk)
 		if exponent > 20 {
 			exponent = 20
-		}
-		if exponent < -20 {
+		} else if exponent < -20 {
 			exponent = -20
 		}
 		mu := mu0 * math.Exp(exponent)
-
 		viscosity := mu * math.Pow(gammaDot, n-1)
 
 		profile = append(profile, model.Point{
@@ -295,25 +294,14 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 			break
 		}
 
-		qGamma := viscosity * math.Pow(gammaDot, 2)
-		qAlpha := alphaU * (Tu - currentTemp) / H
-		dT := ((qGamma + qAlpha) / denominator) * dz
+		// Расчет общих тепловых потоков на сечение
+		qGammaTotal := H * W * viscosity * math.Pow(gammaDot, 2) // Диссипация (Уравнение 13)
+		qAlphaTotal := W * alphaU * (Tu - currentTemp)           // Теплоотдача от крышки (Уравнение 14)
 
-		maxDelta := 0.5
-		if dT > maxDelta {
-			dT = maxDelta
-		}
-		if dT < -maxDelta {
-			dT = -maxDelta
-		}
-
-		currentTemp += dT
-
-		if currentTemp < T0 {
-			currentTemp = T0
-		}
-		if currentTemp > 250 {
-			currentTemp = 250
+		// Численное интегрирование по методу Эйлера на основе Уравнения 4
+		if denominator > 0 {
+			dT := ((qGammaTotal + qAlphaTotal) / denominator) * dz
+			currentTemp += dT
 		}
 	}
 
