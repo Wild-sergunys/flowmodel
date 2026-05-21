@@ -64,8 +64,17 @@
   </div>
 
   <div id="results" style="display: none;">
+    <div class="card" style="border-left: 4px solid var(--pink);">
+      <h2 style="margin-top: 0;">Показатели экономичности</h2>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+        <div><strong>Время расчёта:</strong> <span id="metric-time"></span> мс</div>
+        <div><strong>Использовано памяти:</strong> <span id="metric-memory"></span> байт</div>
+        <div><strong>Арифметические операции (nAO):</strong> <span id="metric-ops"></span></div>
+      </div>
+    </div>
+
     <div class="card">
-      <h2 style="margin-top: 0;">Результаты</h2>
+      <h2 style="margin-top: 0;">Результаты процесса</h2>
       <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px;">
         <div><strong>Производительность:</strong> <span id="productivity"></span></div>
         <div><strong>Температура:</strong> <span id="temperature"></span> °C</div>
@@ -94,9 +103,60 @@
       <canvas id="chart2d"></canvas>
     </div>
 
+    <div class="card">
+      <h3 style="margin-top: 0;">Настройка 3D поверхности</h3>
+      <form id="surface-form">
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: end;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Vu min (м/с)</label>
+            <input type="number" id="surf_vu_min" step="0.1" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Vu max (м/с)</label>
+            <input type="number" id="surf_vu_max" step="0.1" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Tu min (°C)</label>
+            <input type="number" id="surf_tu_min" step="1" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Tu max (°C)</label>
+            <input type="number" id="surf_tu_max" step="1" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Цветовая шкала</label>
+            <select id="surf_color_scale">
+              <option value="default">Стандартная (От синего к красному)</option>
+              <option value="hot">Нагрев (От желтого к красному)</option>
+              <option value="cool">Охлаждение (От голубого к синему)</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top: 15px; text-align: right;">
+          <button type="submit" class="btn">Обновить 3D график</button>
+        </div>
+      </form>
+    </div>
+
     <div class="chart-container">
-      <h3>3D визуализация</h3>
       <div id="chart3d"></div>
+    </div>
+
+    <div class="card">
+      <h3>Таблица значений 3D поверхности</h3>
+      <div class="table-wrapper" style="max-height: 400px; overflow-y: auto;">
+        <table id="surface-table">
+          <thead>
+            <tr>
+              <th>Скорость крышки (Vu), м/с</th>
+              <th>Температура крышки (Tu), °C</th>
+              <th>Производительность, кг/ч</th>
+              <th>Вязкость продукта, Па·с</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
