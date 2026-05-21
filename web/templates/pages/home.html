@@ -106,7 +106,7 @@
     <div class="card">
       <h3 style="margin-top: 0;">Настройка 3D поверхности</h3>
       <form id="surface-form">
-        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: end;">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: end;">
           <div class="form-group" style="margin-bottom: 0;">
             <label>Vu min (м/с)</label>
             <input type="number" id="surf_vu_min" step="0.1" required>
@@ -123,14 +123,6 @@
             <label>Tu max (°C)</label>
             <input type="number" id="surf_tu_max" step="1" required>
           </div>
-          <div class="form-group" style="margin-bottom: 0;">
-            <label>Цветовая шкала</label>
-            <select id="surf_color_scale">
-              <option value="default">Стандартная (От синего к красному)</option>
-              <option value="hot">Нагрев (От желтого к красному)</option>
-              <option value="cool">Охлаждение (От голубого к синему)</option>
-            </select>
-          </div>
         </div>
         <div style="margin-top: 15px; text-align: right;">
           <button type="submit" class="btn">Обновить 3D график</button>
@@ -138,8 +130,16 @@
       </form>
     </div>
 
-    <div class="chart-container">
+    <div class="chart-container" style="position: relative;">
       <div id="chart3d"></div>
+      
+      <div id="chart3d-legend" style="position: absolute; right: 20px; top: 20px; background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 8px; border: 1px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; text-align: center; font-family: 'Courier New', monospace;">
+        <div style="font-size: 12px; margin-bottom: 8px; font-weight: bold;">Вязкость<br>(Па·с)</div>
+        <div id="legend-max" style="font-size: 12px; margin-bottom: 5px; font-weight: bold;">0.0</div>
+        <div style="width: 20px; height: 180px; background: linear-gradient(to top, hsl(237, 85%, 52%), hsl(118, 85%, 52%), hsl(0, 85%, 52%)); margin: 0 auto; border: 1px solid #aaa; border-radius: 2px;"></div>
+        <div id="legend-min" style="font-size: 12px; margin-top: 5px; font-weight: bold;">0.0</div>
+      </div>
+
     </div>
 
     <div class="card">

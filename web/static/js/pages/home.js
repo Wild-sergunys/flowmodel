@@ -1,12 +1,11 @@
 (function() {
   const form = document.getElementById('calculate-form');
-  const surfaceForm = document.getElementById('surface-form'); // Новая форма
+  const surfaceForm = document.getElementById('surface-form');
   const resultsDiv = document.getElementById('results');
   const errorDiv = document.getElementById('error-message');
   
   let chart2d = null;
   
-  // Храним последние успешные базовые данные, чтобы при перерисовке 3D можно было переиспользовать W, H, L и Material
   let lastBaseInput = null; 
   let lastBaseViscosity = null;
 
@@ -45,7 +44,6 @@
     `).join('');
   }
 
-  // НОВАЯ ФУНКЦИЯ: Рендер таблицы значений поверхности
   function renderSurfaceTable(points) {
     const tbody = document.querySelector('#surface-table tbody');
     if (!tbody) return;
@@ -113,8 +111,7 @@
     });
   }
 
-  // ОБНОВЛЕННАЯ ФУНКЦИЯ: Принимает colorScale
-  function render3DChart(surfaceData, baseInput, baseViscosity, colorScale = 'default') {
+  function render3DChart(surfaceData, baseInput, baseViscosity) {
     const container = document.getElementById('chart3d');
     container.innerHTML = '';
     
@@ -167,6 +164,14 @@
       maxEta = Math.max(maxEta, p.viscosity);
     });
 
+    // Обновляем визуальную легенду (цветовую шкалу)
+    const legendEl = document.getElementById('chart3d-legend');
+    if (legendEl) {
+      legendEl.style.display = 'flex';
+      document.getElementById('legend-max').textContent = maxEta.toFixed(1);
+      document.getElementById('legend-min').textContent = minEta.toFixed(1);
+    }
+
     const vertices = [];
     const colors = [];
     const indices = [];
@@ -178,18 +183,8 @@
         const y = (point.viscosity - minEta) / (maxEta - minEta || 1);
         const z = (point.tu - minTu) / (maxTu - minTu || 1);
         
-        const color = new THREE.Color();
-        // ВЫБОР ЦВЕТОВОЙ ШКАЛЫ
-        if (colorScale === 'hot') {
-          // От желтого к красному (теплые тона)
-          color.setHSL(0.15 * (1 - y), 1.0, 0.5);
-        } else if (colorScale === 'cool') {
-          // От голубого к темно-синему (холодные тона)
-          color.setHSL(0.5 + 0.2 * y, 1.0, 0.5);
-        } else {
-          // Default: От синего (низкая) до красного (высокая)
-          color.setHSL(0.66 * (1 - y), 0.85, 0.52);
-        }
+        // HSL(0.66, x, y) = Синий. HSL(0, x, y) = Красный.
+        const color = new THREE.Color().setHSL(0.66 * (1 - y), 0.85, 0.52);
 
         vertices.push(x, y, z);
         colors.push(color.r, color.g, color.b);
@@ -217,12 +212,10 @@
     });
     scene.add(new THREE.Mesh(geom, mat));
 
-    // Отрисовка маркера базового расчета
     const markerX = (baseInput.vu - minVu) / (maxVu - minVu || 1);
     const markerY = (baseViscosity - minEta) / (maxEta - minEta || 1);
     const markerZ = (baseInput.tu - minTu) / (maxTu - minTu || 1);
 
-    // Если точка базового расчета попадает в заданный диапазон, отображаем ее
     if (markerX >= 0 && markerX <= 1 && markerZ >= 0 && markerZ <= 1) {
       const marker = new THREE.Mesh(
         new THREE.SphereGeometry(0.04, 24, 24),
@@ -265,11 +258,10 @@
     });
   }
 
-  // Вынесенная функция для запроса и отрисовки 3D поверхности
-  async function loadAndRenderSurface(surfacePayload, baseInput, baseViscosity, colorScale) {
+  async function loadAndRenderSurface(surfacePayload, baseInput, baseViscosity) {
     try {
       const surfaceResult = await FlowModelAPI.client.calculation.surface(surfacePayload);
-      render3DChart(surfaceResult, baseInput, baseViscosity, colorScale);
+      render3DChart(surfaceResult, baseInput, baseViscosity);
       renderSurfaceTable(surfaceResult.points);
     } catch (e) {
       console.error('Ошибка при отрисовке поверхности:', e);
@@ -282,7 +274,6 @@
       loadMaterials();
     });
     
-    // ОСНОВНАЯ ФОРМА: Запуск базового расчёта
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorDiv.textContent = '';
@@ -307,11 +298,9 @@
         lastBaseInput = data;
         lastBaseViscosity = result.viscosity;
 
-        // ВЫВОД МЕТРИК
         if (result.metrics) {
           document.getElementById('metric-time').textContent = result.metrics.calc_time_ms || 0;
           document.getElementById('metric-memory').textContent = result.metrics.memory_used_bytes || 0;
-          // Поддержка как operation_counts, так и operations_count
           document.getElementById('metric-ops').textContent = result.metrics.operations_count || result.metrics.operation_counts || 0;
         }
 
@@ -323,7 +312,6 @@
         renderProfileTable(result.profile);
         render2DChart(result.profile);
 
-        // Устанавливаем дефолтные значения в форму управления 3D
         document.getElementById('surf_vu_min').value = Math.max(data.vu * 0.5, 0.01).toFixed(2);
         document.getElementById('surf_vu_max').value = (data.vu * 1.5).toFixed(2);
         document.getElementById('surf_tu_min').value = Math.max(data.tu - 20, 0).toFixed(0);
@@ -339,8 +327,7 @@
           tu_steps: 24
         };
         
-        const colorScale = document.getElementById('surf_color_scale').value;
-        await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity, colorScale);
+        await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity);
 
       } catch (e) {
         errorDiv.textContent = `Ошибка: ${e.message}`;
@@ -348,17 +335,15 @@
       }
     });
 
-    // НОВАЯ ФОРМА: Обновление 3D графика
     if (surfaceForm) {
       surfaceForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!lastBaseInput) return; // Защита от клика до расчета
+        if (!lastBaseInput) return; 
 
         const vu_min = parseFloat(document.getElementById('surf_vu_min').value);
         const vu_max = parseFloat(document.getElementById('surf_vu_max').value);
         const tu_min = parseFloat(document.getElementById('surf_tu_min').value);
         const tu_max = parseFloat(document.getElementById('surf_tu_max').value);
-        const colorScale = document.getElementById('surf_color_scale').value;
 
         if (vu_max <= vu_min || tu_max <= tu_min) {
           alert("ОШИБКА: Значения MAX должны быть строго больше значений MIN");
@@ -366,7 +351,7 @@
         }
 
         const surfacePayload = {
-          ...lastBaseInput, // берем W, H, L, material_id из базового запроса
+          ...lastBaseInput,
           vu_min: vu_min,
           vu_max: vu_max,
           vu_steps: 24,
@@ -375,7 +360,7 @@
           tu_steps: 24
         };
 
-        await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity, colorScale);
+        await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity);
       });
     }
   }
