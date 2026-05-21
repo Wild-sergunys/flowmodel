@@ -231,6 +231,10 @@ components:
           type: integer
           description: Реальный объём использованной оперативной памяти в байтах
           example: 5000
+        operation_counts:
+          type: integer
+          description: Количество арифметических операций
+          example: 1200
 
     CalculationResult:
       type: object
@@ -349,7 +353,7 @@ components:
                 description: Числовое значение
         values:
           type: object
-          description: Альтернативный формат — объект {код: значение}
+          description: "Альтернативный формат — объект {код: значение}"
           additionalProperties:
             type: number
             format: double
