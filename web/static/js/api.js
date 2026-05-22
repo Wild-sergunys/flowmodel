@@ -102,6 +102,7 @@
         headers: buildHeaders(requestOptions.headers, requestOptions.body),
       };
 
+
       if (requestOptions.body !== undefined) {
         fetchOptions.body = requestOptions.body instanceof FormData ? requestOptions.body : JSON.stringify(requestOptions.body);
       }
@@ -142,13 +143,7 @@
         logout: () => post("/api/auth/logout"),
         me: () => get("/api/auth/me"),
       },
-      materials: { 
-        list: () => get("/api/materials"),
-        get: (id) => get("/api/materials/" + encodePathPart(id)),
-        parameters: {
-          list: (id) => get("/api/materials/" + encodePathPart(id) + "/parameters")
-        }
-      },
+      materials: { list: () => get("/api/materials") },
       calculation: {
         validate: (payload) => post("/api/validate", payload),
         calculate: (payload) => post("/api/calculate", payload),

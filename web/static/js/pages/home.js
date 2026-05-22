@@ -5,19 +5,9 @@
   const errorDiv = document.getElementById('error-message');
   
   let chart2d = null;
+  
   let lastBaseInput = null; 
   let lastBaseViscosity = null;
-
-  const paramLabels = {
-    'density': 'Плотность (кг/м³)',
-    'heat_capacity': 'Теплоёмкость (Дж/(кг·°С))',
-    'melting_temp': 'Темп. плавления (°С)',
-    'mu0': 'Коэф. консистенции μ0 (Па·сⁿ)',
-    'Ea': 'Энергия активации (Дж/моль)',
-    'Tr': 'Темп. приведения (°С)',
-    'n': 'Индекс течения',
-    'alpha_u': 'Коэф. теплоотдачи (Вт/(м²·°С))'
-  };
 
   async function checkAuth() {
     try {
@@ -29,111 +19,15 @@
     }
   }
 
-  async function loadMaterialParameters(materialId) {
-    // Создаём блок информации, если его нет
-    let infoDiv = document.getElementById('material-info');
-    if (!infoDiv) {
-      const card = document.querySelector('.card');
-      if (card) {
-        infoDiv = document.createElement('div');
-        infoDiv.id = 'material-info';
-        infoDiv.style.cssText = 'margin-top: 20px; padding: 12px; background: var(--card-bg); border-radius: 8px; border-left: 3px solid var(--pink);';
-        card.appendChild(infoDiv);
-      }
-    }
-    
-    if (!infoDiv) return;
-
-    infoDiv.style.display = 'block';
-    infoDiv.innerHTML = '<span style="color: var(--muted); font-size: 0.9em;">Загрузка данных материала...</span>';
-
-    try {
-      const [materialData, paramsData] = await Promise.all([
-        FlowModelAPI.client.materials.get(materialId),
-        FlowModelAPI.client.materials.parameters.list(materialId)
-      ]);
-      
-      let html = `<div style="margin-bottom: 12px;">
-        <strong>📦 Материал:</strong> ${escapeHtml(materialData.name)}<br>
-        <span style="font-size: 0.85em; color: var(--muted);">${escapeHtml(materialData.description || 'Описание отсутствует')}</span>
-      </div>`;
-
-      if (paramsData && Object.keys(paramsData).length > 0) {
-        const paramsHtml = Object.entries(paramsData).map(([code, value]) => {
-          const label = paramLabels[code] || code;
-          let formattedValue = value;
-          if (typeof value === 'number') {
-            if (code === 'n') formattedValue = value.toFixed(3);
-            else if (code === 'Ea') formattedValue = value.toFixed(0);
-            else formattedValue = value.toFixed(2);
-          }
-          return `<div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #eee;">
-            <span style="font-weight: 500;">${escapeHtml(label)}:</span>
-            <span style="font-family: monospace;">${formattedValue} ${escapeHtml(getUnit(code))}</span>
-          </div>`;
-        }).join('');
-
-        html += `
-          <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #ddd;">
-            <strong>📊 РЕОЛОГИЧЕСКИЕ ПАРАМЕТРЫ</strong>
-            <div style="margin-top: 8px; font-size: 0.85em;">
-              ${paramsHtml}
-            </div>
-          </div>
-        `;
-      } else {
-        html += '<span style="color: var(--pink); font-size: 0.85em;">⚠️ Параметры материала не заданы. Используются значения по умолчанию.</span>';
-      }
-
-      infoDiv.innerHTML = html;
-
-    } catch (e) {
-      console.error('Ошибка загрузки параметров:', e);
-      infoDiv.innerHTML = `<span style="color: var(--pink); font-size: 0.85em;">❌ Ошибка загрузки характеристик: ${escapeHtml(e.message)}</span>`;
-    }
-  }
-  
-  function getUnit(code) {
-    const units = {
-      'density': 'кг/м³',
-      'heat_capacity': 'Дж/(кг·°С)',
-      'melting_temp': '°С',
-      'mu0': 'Па·сⁿ',
-      'Ea': 'Дж/моль',
-      'Tr': '°С',
-      'n': '',
-      'alpha_u': 'Вт/(м²·°С)'
-    };
-    return units[code] || '';
-  }
-  
-  function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
   async function loadMaterials() {
     try {
       const materials = await FlowModelAPI.client.materials.list();
-      const materialSelect = document.querySelector('select[name="material_id"]');
-      
-      if (materialSelect && materials.length) {
-        materialSelect.innerHTML = materials.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
-        
-        // Убираем старый обработчик, если был
-        const newSelect = materialSelect.cloneNode(true);
-        materialSelect.parentNode.replaceChild(newSelect, materialSelect);
-        
-        newSelect.addEventListener('change', (e) => loadMaterialParameters(e.target.value));
-        loadMaterialParameters(newSelect.value);
+      const select = document.querySelector('select[name="material_id"]');
+      if (select && materials.length) {
+        select.innerHTML = materials.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
       }
     } catch (e) {
-      console.error('Ошибка загрузки списка материалов:', e);
+      console.error('Ошибка загрузки материалов:', e);
     }
   }
 
@@ -219,7 +113,6 @@
 
   function render3DChart(surfaceData, baseInput, baseViscosity) {
     const container = document.getElementById('chart3d');
-    if (!container) return;
     container.innerHTML = '';
     
     if (!surfaceData || !surfaceData.points || surfaceData.points.length === 0) {
@@ -271,6 +164,7 @@
       maxEta = Math.max(maxEta, p.viscosity);
     });
 
+    // Обновляем визуальную легенду (цветовую шкалу)
     const legendEl = document.getElementById('chart3d-legend');
     if (legendEl) {
       legendEl.style.display = 'flex';
@@ -289,6 +183,7 @@
         const y = (point.viscosity - minEta) / (maxEta - minEta || 1);
         const z = (point.tu - minTu) / (maxTu - minTu || 1);
         
+        // HSL(0.66, x, y) = Синий. HSL(0, x, y) = Красный.
         const color = new THREE.Color().setHSL(0.66 * (1 - y), 0.85, 0.52);
 
         vertices.push(x, y, z);
@@ -370,8 +265,7 @@
       renderSurfaceTable(surfaceResult.points);
     } catch (e) {
       console.error('Ошибка при отрисовке поверхности:', e);
-      const chart3d = document.getElementById('chart3d');
-      if (chart3d) chart3d.innerHTML = '<p style="color:red;">Ошибка загрузки данных 3D графика.</p>';
+      document.getElementById('chart3d').innerHTML = '<p style="color:red;">Ошибка загрузки данных 3D графика.</p>';
     }
   }
 
@@ -382,7 +276,7 @@
     
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (errorDiv) errorDiv.textContent = '';
+      errorDiv.textContent = '';
       
       const isAuth = await checkAuth();
       if (!isAuth) return;
@@ -398,70 +292,45 @@
         steps: parseInt(formData.get('steps')) || 100
       };
 
-      // Проверка на валидность
-      if (isNaN(data.w) || isNaN(data.h) || isNaN(data.l) || 
-          isNaN(data.vu) || isNaN(data.tu) || isNaN(data.material_id)) {
-        if (errorDiv) errorDiv.textContent = 'Заполните все поля корректными числами';
-        return;
-      }
-
       try {
         const result = await FlowModelAPI.client.calculation.calculate(data);
         
         lastBaseInput = data;
         lastBaseViscosity = result.viscosity;
 
-        if (result.metrics && resultsDiv) {
-          const metricTime = document.getElementById('metric-time');
-          const metricMemory = document.getElementById('metric-memory');
-          const metricOps = document.getElementById('metric-ops');
-          if (metricTime) metricTime.textContent = result.metrics.calc_time_ms || 0;
-          if (metricMemory) metricMemory.textContent = result.metrics.memory_used_bytes || 0;
-          if (metricOps) metricOps.textContent = result.metrics.operations_count || result.metrics.operation_counts || 0;
+        if (result.metrics) {
+          document.getElementById('metric-time').textContent = result.metrics.calc_time_ms || 0;
+          document.getElementById('metric-memory').textContent = result.metrics.memory_used_bytes || 0;
+          document.getElementById('metric-ops').textContent = result.metrics.operations_count || result.metrics.operation_counts || 0;
         }
 
-        const productivityEl = document.getElementById('productivity');
-        const temperatureEl = document.getElementById('temperature');
-        const viscosityEl = document.getElementById('viscosity');
-        if (productivityEl) productivityEl.textContent = result.productivity.toFixed(4) + ' кг/ч';
-        if (temperatureEl) temperatureEl.textContent = result.temperature.toFixed(1);
-        if (viscosityEl) viscosityEl.textContent = result.viscosity.toFixed(1);
+        document.getElementById('productivity').textContent = result.productivity.toFixed(4) + ' кг/ч';
+        document.getElementById('temperature').textContent = result.temperature.toFixed(1);
+        document.getElementById('viscosity').textContent = result.viscosity.toFixed(1);
         
-        if (resultsDiv) resultsDiv.style.display = 'block';
+        resultsDiv.style.display = 'block';
         renderProfileTable(result.profile);
         render2DChart(result.profile);
 
-        // Устанавливаем значения для surface формы
-        const surfVuMin = document.getElementById('surf_vu_min');
-        const surfVuMax = document.getElementById('surf_vu_max');
-        const surfTuMin = document.getElementById('surf_tu_min');
-        const surfTuMax = document.getElementById('surf_tu_max');
-        
-        if (surfVuMin) surfVuMin.value = Math.max(data.vu * 0.5, 0.01).toFixed(2);
-        if (surfVuMax) surfVuMax.value = (data.vu * 1.5).toFixed(2);
-        if (surfTuMin) surfTuMin.value = Math.max(data.tu - 20, 0).toFixed(0);
-        if (surfTuMax) surfTuMax.value = (data.tu + 20).toFixed(0);
-        
-        const vuStepsEl = document.getElementById('surf_vu_steps');
-        const tuStepsEl = document.getElementById('surf_tu_steps');
-        
-        if (vuStepsEl) vuStepsEl.value = 24;
-        if (tuStepsEl) tuStepsEl.value = 24;
+        document.getElementById('surf_vu_min').value = Math.max(data.vu * 0.5, 0.01).toFixed(2);
+        document.getElementById('surf_vu_max').value = (data.vu * 1.5).toFixed(2);
+        document.getElementById('surf_tu_min').value = Math.max(data.tu - 20, 0).toFixed(0);
+        document.getElementById('surf_tu_max').value = (data.tu + 20).toFixed(0);
 
         const surfacePayload = {
           ...data,
-          vu_min: surfVuMin ? parseFloat(surfVuMin.value) : data.vu * 0.5,
-          vu_max: surfVuMax ? parseFloat(surfVuMax.value) : data.vu * 1.5,
-          vu_steps: vuStepsEl ? parseInt(vuStepsEl.value) : 24,
-          tu_min: surfTuMin ? parseFloat(surfTuMin.value) : data.tu - 20,
-          tu_max: surfTuMax ? parseFloat(surfTuMax.value) : data.tu + 20,
-          tu_steps: tuStepsEl ? parseInt(tuStepsEl.value) : 24
+          vu_min: parseFloat(document.getElementById('surf_vu_min').value),
+          vu_max: parseFloat(document.getElementById('surf_vu_max').value),
+          vu_steps: 24,
+          tu_min: parseFloat(document.getElementById('surf_tu_min').value),
+          tu_max: parseFloat(document.getElementById('surf_tu_max').value),
+          tu_steps: 24
         };
         
         await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity);
 
       } catch (e) {
-        if (errorDiv) errorDiv.textContent = `Ошибка: ${e.message}`;
+        errorDiv.textContent = `Ошибка: ${e.message}`;
         if (e instanceof FlowModelAPI.AuthError) window.location.href = '/login';
       }
     });
@@ -469,37 +338,26 @@
     if (surfaceForm) {
       surfaceForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!lastBaseInput) {
-          alert('Сначала выполните расчёт!');
-          return;
-        }
+        if (!lastBaseInput) return; 
 
-        const vuMin = parseFloat(document.getElementById('surf_vu_min')?.value);
-        const vuMax = parseFloat(document.getElementById('surf_vu_max')?.value);
-        const tuMin = parseFloat(document.getElementById('surf_tu_min')?.value);
-        const tuMax = parseFloat(document.getElementById('surf_tu_max')?.value);
-        
-        const vuStepsEl = document.getElementById('surf_vu_steps');
-        const tuStepsEl = document.getElementById('surf_tu_steps');
+        const vu_min = parseFloat(document.getElementById('surf_vu_min').value);
+        const vu_max = parseFloat(document.getElementById('surf_vu_max').value);
+        const tu_min = parseFloat(document.getElementById('surf_tu_min').value);
+        const tu_max = parseFloat(document.getElementById('surf_tu_max').value);
 
-        if (isNaN(vuMin) || isNaN(vuMax) || isNaN(tuMin) || isNaN(tuMax)) {
-          alert("ОШИБКА: Все поля должны быть заполнены числами");
-          return;
-        }
-
-        if (vuMax <= vuMin || tuMax <= tuMin) {
+        if (vu_max <= vu_min || tu_max <= tu_min) {
           alert("ОШИБКА: Значения MAX должны быть строго больше значений MIN");
           return;
         }
 
         const surfacePayload = {
           ...lastBaseInput,
-          vu_min: vuMin,
-          vu_max: vuMax,
-          vu_steps: vuStepsEl ? parseInt(vuStepsEl.value) : 24,
-          tu_min: tuMin,
-          tu_max: tuMax,
-          tu_steps: tuStepsEl ? parseInt(tuStepsEl.value) : 24
+          vu_min: vu_min,
+          vu_max: vu_max,
+          vu_steps: 24,
+          tu_min: tu_min,
+          tu_max: tu_max,
+          tu_steps: 24
         };
 
         await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity);

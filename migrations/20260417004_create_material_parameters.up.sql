@@ -31,7 +31,7 @@ ON DUPLICATE KEY UPDATE
 
 -- Материал ПВХ
 INSERT INTO materials (id, name, description) VALUES 
-(1, 'Поливинил-хлорид', 'Поливинил-хлорид')
+(1, 'ПВХ', 'Поливинилхлорид')
 ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description);
 
 -- Значения для ПВХ
@@ -48,7 +48,7 @@ ON DUPLICATE KEY UPDATE value_float = VALUES(value_float);
 
 -- Материал ПЭВП (полиэтилен высокой плотности)
 INSERT INTO materials (id, name, description) VALUES 
-(2, 'Полиэтилен высокой плотности', 'Полиэтилен высокой плотности')
+(2, 'ПЭВП', 'Полиэтилен высокой плотности')
 ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description);
 
 -- Значения для ПЭВП
