@@ -37,7 +37,6 @@
     infoDiv.innerHTML = '<span style="color: var(--muted); font-size: 0.9em;">Загрузка данных материала...</span>';
 
     try {
-      // Используем новые публичные методы
       const [materialData, paramsData] = await Promise.all([
         FlowModelAPI.client.materials.get(materialId),
         FlowModelAPI.client.materials.parameters.list(materialId)
@@ -365,22 +364,27 @@
         renderProfileTable(result.profile);
         render2DChart(result.profile);
 
+        // Устанавливаем значения. Безопасное обращение к элементам шагов
         document.getElementById('surf_vu_min').value = Math.max(data.vu * 0.5, 0.01).toFixed(2);
         document.getElementById('surf_vu_max').value = (data.vu * 1.5).toFixed(2);
-        document.getElementById('surf_vu_steps').value = 24;
         
         document.getElementById('surf_tu_min').value = Math.max(data.tu - 20, 0).toFixed(0);
         document.getElementById('surf_tu_max').value = (data.tu + 20).toFixed(0);
-        document.getElementById('surf_tu_steps').value = 24;
+        
+        const vuStepsEl = document.getElementById('surf_vu_steps');
+        if (vuStepsEl) vuStepsEl.value = 24;
+        
+        const tuStepsEl = document.getElementById('surf_tu_steps');
+        if (tuStepsEl) tuStepsEl.value = 24;
 
         const surfacePayload = {
           ...data,
           vu_min: parseFloat(document.getElementById('surf_vu_min').value),
           vu_max: parseFloat(document.getElementById('surf_vu_max').value),
-          vu_steps: 24,
+          vu_steps: vuStepsEl ? parseInt(vuStepsEl.value) : 24, // Fallback на 24, если поля нет
           tu_min: parseFloat(document.getElementById('surf_tu_min').value),
           tu_max: parseFloat(document.getElementById('surf_tu_max').value),
-          tu_steps: 24
+          tu_steps: tuStepsEl ? parseInt(tuStepsEl.value) : 24  // Fallback на 24, если поля нет
         };
         
         await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity);
@@ -398,11 +402,11 @@
 
         const vu_min = parseFloat(document.getElementById('surf_vu_min').value);
         const vu_max = parseFloat(document.getElementById('surf_vu_max').value);
-        const vu_steps = parseInt(document.getElementById('surf_vu_steps').value);
-        
         const tu_min = parseFloat(document.getElementById('surf_tu_min').value);
         const tu_max = parseFloat(document.getElementById('surf_tu_max').value);
-        const tu_steps = parseInt(document.getElementById('surf_tu_steps').value);
+        
+        const vuStepsEl = document.getElementById('surf_vu_steps');
+        const tuStepsEl = document.getElementById('surf_tu_steps');
 
         if (vu_max <= vu_min || tu_max <= tu_min) {
           alert("ОШИБКА: Значения MAX должны быть строго больше значений MIN");
@@ -413,10 +417,10 @@
           ...lastBaseInput,
           vu_min: vu_min,
           vu_max: vu_max,
-          vu_steps: vu_steps,
+          vu_steps: vuStepsEl ? parseInt(vuStepsEl.value) : 24,
           tu_min: tu_min,
           tu_max: tu_max,
-          tu_steps: tu_steps
+          tu_steps: tuStepsEl ? parseInt(tuStepsEl.value) : 24
         };
 
         await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity);
