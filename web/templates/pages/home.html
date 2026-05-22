@@ -44,8 +44,9 @@
         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
           <div class="form-group">
             <label>Материал</label>
-            <select name="material_id" required>
-              <option value="1">ПВХ</option>
+            <select name="material_id" id="material_id_select" required>
+              <!-- Данные загружаются из БД через JS -->
+              <option value="">Загрузка...</option>
             </select>
           </div>
           <div class="form-group">
@@ -61,6 +62,11 @@
 
     </form>
     <div id="error-message" style="color: var(--pink); margin-top: 16px;"></div>
+  </div>
+
+  <!-- Блок информации о материале (заполняется из БД) -->
+  <div id="material-info" class="card" style="display: none; background: var(--card); border-left: 4px solid var(--pink);">
+    <!-- Динамическое содержимое -->
   </div>
 
   <div id="results" style="display: none;">
@@ -106,7 +112,7 @@
     <div class="card">
       <h3 style="margin-top: 0;">Настройка 3D поверхности</h3>
       <form id="surface-form">
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: end;">
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: end;">
           <div class="form-group" style="margin-bottom: 0;">
             <label>Vu min (м/с)</label>
             <input type="number" id="surf_vu_min" step="0.1" required>
@@ -116,12 +122,20 @@
             <input type="number" id="surf_vu_max" step="0.1" required>
           </div>
           <div class="form-group" style="margin-bottom: 0;">
+            <label>Шаги Vu</label>
+            <input type="number" id="surf_vu_steps" value="24" min="5" max="50" step="1" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
             <label>Tu min (°C)</label>
             <input type="number" id="surf_tu_min" step="1" required>
           </div>
           <div class="form-group" style="margin-bottom: 0;">
             <label>Tu max (°C)</label>
             <input type="number" id="surf_tu_max" step="1" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Шаги Tu</label>
+            <input type="number" id="surf_tu_steps" value="24" min="5" max="50" step="1" required>
           </div>
         </div>
         <div style="margin-top: 15px; text-align: right;">
@@ -139,7 +153,6 @@
         <div style="width: 20px; height: 180px; background: linear-gradient(to top, hsl(237, 85%, 52%), hsl(118, 85%, 52%), hsl(0, 85%, 52%)); border: 1px solid #aaa; border-radius: 2px;"></div>
         <div id="legend-min" style="font-size: 12px; margin-top: 5px; font-weight: bold;">0.0</div>
       </div>
-
     </div>
 
     <div class="card">
