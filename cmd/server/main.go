@@ -107,6 +107,8 @@ func main() {
 
 	// Materials (public)
 	mux.Handle("GET /api/materials", authMiddleware(http.HandlerFunc(materialHandler.GetAll)))
+	mux.Handle("GET /api/materials/{id}", authMiddleware(http.HandlerFunc(adminHandler.GetMaterialByID)))
+	mux.Handle("GET /api/materials/{id}/parameters", authMiddleware(http.HandlerFunc(materialParamHandler.ListParameters)))
 
 	// Validation
 	mux.HandleFunc("POST /api/validate", calcHandler.Validate)

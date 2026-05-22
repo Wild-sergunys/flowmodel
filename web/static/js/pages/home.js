@@ -5,9 +5,19 @@
   const errorDiv = document.getElementById('error-message');
   
   let chart2d = null;
-  
   let lastBaseInput = null; 
   let lastBaseViscosity = null;
+
+  const paramLabels = {
+    'density': 'Плотность (кг/м³)',
+    'heat_capacity': 'Теплоёмкость (Дж/(кг·°С))',
+    'melting_temp': 'Темп. плавления (°С)',
+    'mu0': 'Коэф. консистенции μ0',
+    'Ea': 'Энергия активации (Дж/моль)',
+    'Tr': 'Темп. приведения (°С)',
+    'n': 'Индекс течения',
+    'alpha_u': 'Коэф. теплоотдачи'
+  };
 
   async function checkAuth() {
     try {
@@ -19,15 +29,60 @@
     }
   }
 
+  async function loadMaterialParameters(materialId) {
+    const infoDiv = document.getElementById('material-info');
+    if (!infoDiv) return;
+
+    infoDiv.style.display = 'block';
+    infoDiv.innerHTML = '<span style="color: var(--muted); font-size: 0.9em;">Загрузка данных материала...</span>';
+
+    try {
+      // Используем новые публичные методы
+      const [materialData, paramsData] = await Promise.all([
+        FlowModelAPI.client.materials.get(materialId),
+        FlowModelAPI.client.materials.parameters.list(materialId)
+      ]);
+      
+      let html = `<div style="margin-bottom: 12px;">
+        <strong>Материал:</strong> ${materialData.name}<br>
+        <span style="font-size: 0.9em; color: var(--muted);">${materialData.description || 'Описание отсутствует'}</span>
+      </div>`;
+
+      if (paramsData && paramsData.length > 0) {
+        const paramsHtml = paramsData.map(p => {
+          const label = paramLabels[p.code] || p.code;
+          return `<div><strong>${label}:</strong> ${p.value_float}</div>`;
+        }).join('');
+
+        html += `
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 0.85em; border-top: 1px solid #ddd; padding-top: 8px;">
+            ${paramsHtml}
+          </div>
+        `;
+      } else {
+        html += '<span style="color: var(--muted); font-size: 0.85em;">Параметры не заданы.</span>';
+      }
+
+      infoDiv.innerHTML = html;
+
+    } catch (e) {
+      infoDiv.innerHTML = `<span style="color: var(--pink); font-size: 0.85em;">Ошибка загрузки характеристик: ${e.message}</span>`;
+    }
+  }
+
   async function loadMaterials() {
     try {
       const materials = await FlowModelAPI.client.materials.list();
-      const select = document.querySelector('select[name="material_id"]');
+      const select = document.getElementById('material_id_select');
+      
       if (select && materials.length) {
         select.innerHTML = materials.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+        
+        select.addEventListener('change', (e) => loadMaterialParameters(e.target.value));
+        loadMaterialParameters(select.value);
       }
     } catch (e) {
-      console.error('Ошибка загрузки материалов:', e);
+      console.error('Ошибка загрузки списка материалов:', e);
     }
   }
 
@@ -164,7 +219,6 @@
       maxEta = Math.max(maxEta, p.viscosity);
     });
 
-    // Обновляем визуальную легенду (цветовую шкалу)
     const legendEl = document.getElementById('chart3d-legend');
     if (legendEl) {
       legendEl.style.display = 'flex';
@@ -183,7 +237,6 @@
         const y = (point.viscosity - minEta) / (maxEta - minEta || 1);
         const z = (point.tu - minTu) / (maxTu - minTu || 1);
         
-        // HSL(0.66, x, y) = Синий. HSL(0, x, y) = Красный.
         const color = new THREE.Color().setHSL(0.66 * (1 - y), 0.85, 0.52);
 
         vertices.push(x, y, z);
@@ -314,8 +367,11 @@
 
         document.getElementById('surf_vu_min').value = Math.max(data.vu * 0.5, 0.01).toFixed(2);
         document.getElementById('surf_vu_max').value = (data.vu * 1.5).toFixed(2);
+        document.getElementById('surf_vu_steps').value = 24;
+        
         document.getElementById('surf_tu_min').value = Math.max(data.tu - 20, 0).toFixed(0);
         document.getElementById('surf_tu_max').value = (data.tu + 20).toFixed(0);
+        document.getElementById('surf_tu_steps').value = 24;
 
         const surfacePayload = {
           ...data,
@@ -342,8 +398,11 @@
 
         const vu_min = parseFloat(document.getElementById('surf_vu_min').value);
         const vu_max = parseFloat(document.getElementById('surf_vu_max').value);
+        const vu_steps = parseInt(document.getElementById('surf_vu_steps').value);
+        
         const tu_min = parseFloat(document.getElementById('surf_tu_min').value);
         const tu_max = parseFloat(document.getElementById('surf_tu_max').value);
+        const tu_steps = parseInt(document.getElementById('surf_tu_steps').value);
 
         if (vu_max <= vu_min || tu_max <= tu_min) {
           alert("ОШИБКА: Значения MAX должны быть строго больше значений MIN");
@@ -354,10 +413,10 @@
           ...lastBaseInput,
           vu_min: vu_min,
           vu_max: vu_max,
-          vu_steps: 24,
+          vu_steps: vu_steps,
           tu_min: tu_min,
           tu_max: tu_max,
-          tu_steps: 24
+          tu_steps: tu_steps
         };
 
         await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity);
