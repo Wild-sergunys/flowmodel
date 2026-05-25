@@ -24,24 +24,14 @@ func (h *MaterialParameterHandler) ListParameters(w http.ResponseWriter, r *http
 		return
 	}
 
-	params, err := h.repo.FindByMaterialID(r.Context(), id)
+	params, err := h.repo.FindDetailsByMaterialID(r.Context(), id)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "internal_error", "Ошибка получения параметров", nil)
 		return
 	}
 
-	type ParamValue struct {
-		Code       string  `json:"code"`
-		ValueFloat float64 `json:"value_float"`
-	}
-
-	result := make([]ParamValue, 0, len(params))
-	for code, value := range params {
-		result = append(result, ParamValue{Code: code, ValueFloat: value})
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(params)
 }
 
 func (h *MaterialParameterHandler) UpdateParameters(w http.ResponseWriter, r *http.Request) {

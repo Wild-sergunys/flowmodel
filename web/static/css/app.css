@@ -181,6 +181,45 @@ input:focus, select:focus, textarea:focus {
     outline: none;
 }
 
+.material-parameters {
+    margin-top: 12px;
+    border: 2px solid var(--text);
+    background: var(--card);
+}
+
+.material-parameters:empty {
+    display: none;
+}
+
+.material-parameters__title,
+.material-parameters__empty {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.material-parameters__title {
+    border-bottom: 2px solid var(--text);
+    background: var(--lime);
+}
+
+.material-parameters__empty {
+    color: var(--muted);
+}
+
+.material-parameters__table td {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    border-bottom-width: 1px;
+}
+
+.material-parameters__table td:last-child {
+    text-align: right;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
 /* Карточки */
 .card {
     background: var(--card);

@@ -143,7 +143,10 @@
         logout: () => post("/api/auth/logout"),
         me: () => get("/api/auth/me"),
       },
-      materials: { list: () => get("/api/materials") },
+      materials: {
+        list: () => get("/api/materials"),
+        parameters: (materialId) => get("/api/materials/" + encodePathPart(materialId) + "/parameters"),
+      },
       calculation: {
         validate: (payload) => post("/api/validate", payload),
         calculate: (payload) => post("/api/calculate", payload),

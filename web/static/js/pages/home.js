@@ -8,6 +8,16 @@
   
   let lastBaseInput = null; 
   let lastBaseViscosity = null;
+  let materialParametersRequestId = 0;
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 
   async function checkAuth() {
     try {
@@ -24,10 +34,78 @@
       const materials = await FlowModelAPI.client.materials.list();
       const select = document.querySelector('select[name="material_id"]');
       if (select && materials.length) {
-        select.innerHTML = materials.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+        select.innerHTML = materials
+          .map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`)
+          .join('');
+        await loadMaterialParameters(select.value);
       }
     } catch (e) {
       console.error('Ошибка загрузки материалов:', e);
+    }
+  }
+
+  function formatParameterValue(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return '-';
+    return Number.isInteger(num) ? String(num) : String(Number(num.toFixed(6)));
+  }
+
+  function renderMaterialParameters(params) {
+    const container = document.getElementById('material-parameters');
+    if (!container) return;
+
+    container.innerHTML = '';
+    if (!params || !params.length) {
+      const empty = document.createElement('div');
+      empty.className = 'material-parameters__empty';
+      empty.textContent = 'Параметры для материала не заданы';
+      container.appendChild(empty);
+      return;
+    }
+
+    const title = document.createElement('div');
+    title.className = 'material-parameters__title';
+    title.textContent = 'Параметры материала';
+    container.appendChild(title);
+
+    const table = document.createElement('table');
+    table.className = 'material-parameters__table';
+    const tbody = document.createElement('tbody');
+
+    params.forEach((param) => {
+      const row = document.createElement('tr');
+
+      const nameCell = document.createElement('td');
+      nameCell.textContent = param.name || param.code || '-';
+
+      const valueCell = document.createElement('td');
+      const unit = param.unit ? ` ${param.unit}` : '';
+      valueCell.textContent = `${formatParameterValue(param.value_float)}${unit}`;
+
+      row.appendChild(nameCell);
+      row.appendChild(valueCell);
+      tbody.appendChild(row);
+    });
+
+    table.appendChild(tbody);
+    container.appendChild(table);
+  }
+
+  async function loadMaterialParameters(materialId) {
+    const container = document.getElementById('material-parameters');
+    if (!container || !materialId) return;
+
+    const requestId = ++materialParametersRequestId;
+    container.innerHTML = '<div class="material-parameters__empty">Загрузка параметров...</div>';
+
+    try {
+      const params = await FlowModelAPI.client.materials.parameters(materialId);
+      if (requestId !== materialParametersRequestId) return;
+      renderMaterialParameters(params);
+    } catch (e) {
+      if (requestId !== materialParametersRequestId) return;
+      console.error('Ошибка загрузки параметров материала:', e);
+      container.innerHTML = '<div class="material-parameters__empty">Не удалось загрузить параметры</div>';
     }
   }
 
@@ -273,6 +351,11 @@
     checkAuth().then(() => {
       loadMaterials();
     });
+
+    const materialSelect = document.querySelector('select[name="material_id"]');
+    if (materialSelect) {
+      materialSelect.addEventListener('change', () => loadMaterialParameters(materialSelect.value));
+    }
     
     form.addEventListener('submit', async (e) => {
       e.preventDefault();

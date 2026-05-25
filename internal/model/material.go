@@ -15,3 +15,12 @@ type Material struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
+
+type MaterialParameterValue struct {
+	Code        string  `json:"code"`
+	Name        string  `json:"name"`
+	Unit        *string `json:"unit,omitempty"`
+	Category    string  `json:"category"`
+	Description *string `json:"description,omitempty"`
+	ValueFloat  float64 `json:"value_float"`
+}
