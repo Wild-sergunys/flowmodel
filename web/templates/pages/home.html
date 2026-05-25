@@ -40,8 +40,8 @@
       </fieldset>
 
       <fieldset style="border: 2px solid var(--text); padding: 16px; margin-bottom: 20px;">
-        <legend style="font-weight: bold; padding: 0 10px; text-transform: uppercase; letter-spacing: 1px;">Параметры материала и расчёта</legend>
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+        <legend style="font-weight: bold; padding: 0 10px; text-transform: uppercase; letter-spacing: 1px;">Параметры материала</legend>
+        <div style="display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 16px;">
           <div class="form-group">
             <label>Материал</label>
             <select name="material_id" required>
@@ -49,6 +49,12 @@
             </select>
             <div id="material-parameters" class="material-parameters" aria-live="polite"></div>
           </div>
+        </div>
+      </fieldset>
+
+      <fieldset style="border: 2px solid var(--text); padding: 16px; margin-bottom: 20px;">
+        <legend style="font-weight: bold; padding: 0 10px; text-transform: uppercase; letter-spacing: 1px;">Параметры расчёта</legend>
+        <div style="display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 16px;">
           <div class="form-group">
             <label>Количество шагов</label>
             <input type="number" name="steps" value="50" step="1" min="10" max="500" required>
