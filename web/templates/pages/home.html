@@ -30,7 +30,7 @@
         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
           <div class="form-group">
             <label>Скорость крышки Vu, м/с</label>
-            <input type="number" name="vu" value="1.5" step="0.1" min="0" max="100.0" required>
+            <input type="number" name="vu" value="1.5" step="0.01" min="0" max="100.0" required>
           </div>
           <div class="form-group">
             <label>Температура крышки Tu, °C</label>
@@ -56,7 +56,7 @@
         <legend style="font-weight: bold; padding: 0 10px; text-transform: uppercase; letter-spacing: 1px;">Параметры расчёта</legend>
         <div style="display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 16px;">
           <div class="form-group">
-            <label>Количество шагов</label>
+            <label>Количество шагов (10-500)</label>
             <input type="number" name="steps" value="50" step="1" min="10" max="500" required>
           </div>
         </div>
@@ -113,14 +113,14 @@
     <div class="card">
       <h3 style="margin-top: 0;">Настройка 3D поверхности</h3>
       <form id="surface-form">
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: end;">
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: end;">
           <div class="form-group" style="margin-bottom: 0;">
             <label>Vu min (м/с)</label>
-            <input type="number" id="surf_vu_min" step="0.1" required>
+            <input type="number" id="surf_vu_min" step="0.01" required>
           </div>
           <div class="form-group" style="margin-bottom: 0;">
             <label>Vu max (м/с)</label>
-            <input type="number" id="surf_vu_max" step="0.1" required>
+            <input type="number" id="surf_vu_max" step="0.01" required>
           </div>
           <div class="form-group" style="margin-bottom: 0;">
             <label>Tu min (°C)</label>
@@ -129,6 +129,10 @@
           <div class="form-group" style="margin-bottom: 0;">
             <label>Tu max (°C)</label>
             <input type="number" id="surf_tu_max" step="1" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Шаги (10-50)</label>
+            <input type="number" id="surf_steps" min="10" max="50" step="1" value="24" required>
           </div>
         </div>
         <div style="margin-top: 15px; text-align: right;">
@@ -139,32 +143,15 @@
 
     <div class="chart-container" style="position: relative;">
       <div id="chart3d"></div>
-      
       <div id="chart3d-legend" style="position: absolute; right: 20px; top: 20px; z-index: 10; background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 8px; border: 1px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; flex-direction: column; align-items: center; font-family: 'Courier New', monospace;">
         <div style="font-size: 12px; margin-bottom: 8px; font-weight: bold; text-align: center;">Вязкость<br>(Па·с)</div>
         <div id="legend-max" style="font-size: 12px; margin-bottom: 5px; font-weight: bold;">0.0</div>
         <div style="width: 20px; height: 180px; background: linear-gradient(to top, hsl(237, 85%, 52%), hsl(118, 85%, 52%), hsl(0, 85%, 52%)); border: 1px solid #aaa; border-radius: 2px;"></div>
         <div id="legend-min" style="font-size: 12px; margin-top: 5px; font-weight: bold;">0.0</div>
       </div>
-
     </div>
 
-    <div class="card">
-      <h3>Таблица значений 3D поверхности</h3>
-      <div class="table-wrapper" style="max-height: 400px; overflow-y: auto;">
-        <table id="surface-table">
-          <thead>
-            <tr>
-              <th>Скорость крышки (Vu), м/с</th>
-              <th>Температура крышки (Tu), °C</th>
-              <th>Производительность, кг/ч</th>
-              <th>Вязкость продукта, Па·с</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
+    <div id="surface-table"></div>
   </div>
 </div>
 

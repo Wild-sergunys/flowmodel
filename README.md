@@ -104,6 +104,13 @@ go test ./internal/... ./web/ -v
 - Расчёт профиля температур и вязкости по длине канала (метод шагов)
 - Результат: производительность (кг/ч), температура и вязкость продукта на выходе
 
+## Резервная копия бд, пример
+docker-compose exec -T db mysqldump -u root -p12 flowmodel > backup.sql
+
+docker-compose exec -T db mysql -u root -p12 flowmodel < backup.sql
+
+
 ## ЛИЦЕНЗИЯ
 
 MIT
+

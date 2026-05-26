@@ -32,7 +32,7 @@
             <td>${r.id}</td>
             <td>${new Date(r.created_at).toLocaleString()}</td>
             <td>${materialMap[r.material_id] || '-'}</td>
-            <td>${(result.productivity || 0).toFixed(2)} кг/ч</td>
+            <td>${Math.round(result.productivity || 0)} кг/ч</td>
             <td>${(result.temperature || 0).toFixed(1)} °C</td>
             <td>${(result.viscosity || 0).toFixed(1)} Па·с</td>
             <td>

@@ -123,17 +123,64 @@
   }
 
   function renderSurfaceTable(points) {
-    const tbody = document.querySelector('#surface-table tbody');
-    if (!tbody) return;
+    const container = document.querySelector('#surface-table');
+    if (!container) return;
     
-    tbody.innerHTML = points.map(p => `
-      <tr>
-        <td>${p.vu.toFixed(2)}</td>
-        <td>${p.tu.toFixed(1)}</td>
-        <td>${p.productivity.toFixed(2)}</td>
-        <td>${p.viscosity.toFixed(1)}</td>
-      </tr>
-    `).join('');
+    if (!points || points.length === 0) {
+      container.innerHTML = '<div class="card"><p style="text-align:center; color:var(--muted);">Нет данных для отображения</p></div>';
+      return;
+    }
+    
+    const vuSet = [...new Set(points.map(p => p.vu))].sort((a, b) => a - b);
+    const tuSet = [...new Set(points.map(p => p.tu))].sort((a, b) => a - b);
+    
+    const viscosityMap = {};
+    points.forEach(p => {
+      const key = `${p.vu}|${p.tu}`;
+      viscosityMap[key] = p.viscosity;
+    });
+    
+    let html = `
+      <div class="card">
+        <h3>Таблица для 3D графика (зависимость вязкости от температуры и скорости крышки)</h3>
+        <div class="table-wrapper" style="max-height: 400px; overflow: auto;">
+          <table style="min-width: 500px;">
+            <thead>
+              <tr>
+                <th style="position: sticky; left: 0; background: var(--text); z-index: 2;">Vu \ d\Tu</th>
+    `;
+    
+    tuSet.forEach(tu => {
+      html += `<th style="white-space: nowrap;">${tu.toFixed(0)}°C</th>`;
+    });
+    
+    html += `
+              </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    vuSet.forEach(vu => {
+      html += `<tr><td style="position: sticky; left: 0; background: var(--card); font-weight: bold; white-space: nowrap;">${vu.toFixed(2)} м/с</td>`;
+      
+      tuSet.forEach(tu => {
+        const key = `${vu}|${tu}`;
+        const viscosity = viscosityMap[key];
+        const value = viscosity !== undefined ? viscosity.toFixed(1) : '—';
+        html += `<td style="text-align: center; white-space: nowrap;">${value}</td>`;
+      });
+      
+      html += `</tr>`;
+    });
+    
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    
+    container.innerHTML = html;
   }
 
   function render2DChart(profile) {
@@ -181,7 +228,7 @@
           legend: { labels: { font: { family: 'Courier New' }, usePointStyle: true } }
         },
         scales: {
-          x: { title: { display: true, text: 'Координата канала, м' } },
+          x: { title: { display: true, text: 'Координата по длине канала, м' } },
           y: { type: 'linear', position: 'left', title: { display: true, text: 'Температура, °C' } },
           y1: { type: 'linear', position: 'right', title: { display: true, text: 'Вязкость, Па·с' }, grid: { drawOnChartArea: false } }
         }
@@ -242,7 +289,6 @@
       maxEta = Math.max(maxEta, p.viscosity);
     });
 
-    // Обновляем визуальную легенду (цветовую шкалу)
     const legendEl = document.getElementById('chart3d-legend');
     if (legendEl) {
       legendEl.style.display = 'flex';
@@ -261,7 +307,6 @@
         const y = (point.viscosity - minEta) / (maxEta - minEta || 1);
         const z = (point.tu - minTu) / (maxTu - minTu || 1);
         
-        // HSL(0.66, x, y) = Синий. HSL(0, x, y) = Красный.
         const color = new THREE.Color().setHSL(0.66 * (1 - y), 0.85, 0.52);
 
         vertices.push(x, y, z);
@@ -289,19 +334,6 @@
       vertexColors: true, transparent: true, opacity: 0.85, side: THREE.DoubleSide
     });
     scene.add(new THREE.Mesh(geom, mat));
-
-    const markerX = (baseInput.vu - minVu) / (maxVu - minVu || 1);
-    const markerY = (baseViscosity - minEta) / (maxEta - minEta || 1);
-    const markerZ = (baseInput.tu - minTu) / (maxTu - minTu || 1);
-
-    if (markerX >= 0 && markerX <= 1 && markerZ >= 0 && markerZ <= 1) {
-      const marker = new THREE.Mesh(
-        new THREE.SphereGeometry(0.04, 24, 24),
-        new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x222222 })
-      );
-      marker.position.set(markerX, markerY, markerZ);
-      scene.add(marker);
-    }
     
     scene.add(new THREE.AxesHelper(1.5));
 
@@ -343,7 +375,7 @@
       renderSurfaceTable(surfaceResult.points);
     } catch (e) {
       console.error('Ошибка при отрисовке поверхности:', e);
-      document.getElementById('chart3d').innerHTML = '<p style="color:red;">Ошибка загрузки данных 3D графика.</p>';
+      document.getElementById('chart3d').innerHTML = '<p style="color:red;">Ошибка загрузки данных 3D графика: ' + (e.message || 'неизвестная ошибка') + '</p>';
     }
   }
 
@@ -387,7 +419,7 @@
           document.getElementById('metric-ops').textContent = result.metrics.operations_count || result.metrics.operation_counts || 0;
         }
 
-        document.getElementById('productivity').textContent = result.productivity.toFixed(4) + ' кг/ч';
+        document.getElementById('productivity').textContent = Math.round(result.productivity) + ' кг/ч';
         document.getElementById('temperature').textContent = result.temperature.toFixed(1);
         document.getElementById('viscosity').textContent = result.viscosity.toFixed(1);
         
@@ -399,15 +431,17 @@
         document.getElementById('surf_vu_max').value = (data.vu * 1.5).toFixed(2);
         document.getElementById('surf_tu_min').value = Math.max(data.tu - 20, 0).toFixed(0);
         document.getElementById('surf_tu_max').value = (data.tu + 20).toFixed(0);
+        document.getElementById('surf_steps').value = Math.min(Math.max(data.steps, 3), 50);
 
         const surfacePayload = {
           ...data,
           vu_min: parseFloat(document.getElementById('surf_vu_min').value),
           vu_max: parseFloat(document.getElementById('surf_vu_max').value),
-          vu_steps: 24,
+          vu_steps: parseInt(document.getElementById('surf_steps').value) || 24,
           tu_min: parseFloat(document.getElementById('surf_tu_min').value),
           tu_max: parseFloat(document.getElementById('surf_tu_max').value),
-          tu_steps: 24
+          tu_steps: parseInt(document.getElementById('surf_steps').value) || 24,
+          steps: parseInt(document.getElementById('surf_steps').value) || 24
         };
         
         await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity);
@@ -427,6 +461,11 @@
         const vu_max = parseFloat(document.getElementById('surf_vu_max').value);
         const tu_min = parseFloat(document.getElementById('surf_tu_min').value);
         const tu_max = parseFloat(document.getElementById('surf_tu_max').value);
+        let steps = parseInt(document.getElementById('surf_steps').value);
+
+        if (isNaN(steps)) steps = 24;
+        steps = Math.min(Math.max(steps, 3), 50);
+        document.getElementById('surf_steps').value = steps;
 
         if (vu_max <= vu_min || tu_max <= tu_min) {
           alert("ОШИБКА: Значения MAX должны быть строго больше значений MIN");
@@ -434,13 +473,17 @@
         }
 
         const surfacePayload = {
-          ...lastBaseInput,
+          w: lastBaseInput.w,
+          h: lastBaseInput.h,
+          l: lastBaseInput.l,
+          material_id: lastBaseInput.material_id,
           vu_min: vu_min,
           vu_max: vu_max,
-          vu_steps: 24,
+          vu_steps: steps,
           tu_min: tu_min,
           tu_max: tu_max,
-          tu_steps: 24
+          tu_steps: steps,
+          steps: steps
         };
 
         await loadAndRenderSurface(surfacePayload, lastBaseInput, lastBaseViscosity);

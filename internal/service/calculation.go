@@ -223,7 +223,7 @@ func (s *CalculationService) CalculateSurface(ctx context.Context, input *model.
 }
 
 func (s *CalculationService) compute(input *model.CalculationInput, params map[string]float64) *model.CalculationResult {
-	opsCount := 0 // Инициализация счетчика арифметических операций nAO
+	opsCount := 0
 
 	rho := getFloatParam(params, "density", 1380)
 	c := getFloatParam(params, "heat_capacity", 2500)
@@ -247,14 +247,13 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 
 	const R = 8.314
 
+	// Коэффициент формы канала
 	var F float64
 	if W > 0 && H > 0 {
 		ratio := H / W
-		opsCount++ // деление
-
+		opsCount++
 		F = 0.125*math.Pow(ratio, 2) - 0.625*ratio + 1.0
-		opsCount += 5 // возведение в степень, умножение (2), вычитание, сложение
-
+		opsCount += 5
 		if F < 0.3 {
 			F = 0.3
 		}
@@ -262,71 +261,83 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 		F = 1.0
 	}
 
-	gammaDot := Vu / H
-	opsCount++ // деление
+	// Параметр уравнения Андраде
+	T0K := T0 + 273.0
+	TrK := Tr + 273.0
+	b := Ea / (R * (T0K + 20) * TrK)
+	opsCount += 6
 
+	// Объемный расход
 	Qch := (W * H * Vu / 2.0) * F
-	opsCount += 4 // умножение (3), деление
+	opsCount += 4
 
-	productivity := rho * Qch * 3600
-	opsCount += 2 // умножение (2)
+	// Скорость сдвига
+	gammaDot := Vu / H
+	opsCount++
 
+	// Тепловые потоки
+	qGamma := H * W * mu0 * math.Pow(gammaDot, n+1.0)
+	opsCount += 5
+
+	qAlpha := W * alphaU * Tu
+	opsCount += 2
+
+	// Знаменатель и коэффициент x1
+	denom := W*(1.0+b*Tr)*alphaU - b*qAlpha
+	opsCount += 6
+
+	x1 := (b*qGamma + W*alphaU) / denom
+	opsCount += 4
+
+	// Шаг расчета
 	dz := L / float64(steps)
-	opsCount++ // деление
+	opsCount++
+
+	roCQch := rho * c * Qch
+	opsCount += 2
 
 	profile := make([]model.Point, 0, steps+1)
-	currentTemp := T0
 
-	denominator := rho * c * Qch
-	opsCount += 2 // умножение (2)
-
+	// Цикл по длине канала
 	for i := 0; i <= steps; i++ {
 		z := float64(i) * dz
-		opsCount++ // умножение
+		opsCount++
 
-		Tk := currentTemp + 273.15
-		Trk := Tr + 273.15
-		opsCount += 2 // сложение (2)
+		expArg2 := -(denom * z) / roCQch
+		x2 := 1.0 - math.Exp(expArg2)
+		opsCount += 4
 
-		exponent := (Ea / R) * (1.0/Tk - 1.0/Trk)
-		opsCount += 5 // деление (3), вычитание, умножение
+		tempNum := (W*(1.0/b+Tr)*alphaU - qAlpha) * z / roCQch
+		expArg3 := b * (T0 - Tr - tempNum)
+		x3 := math.Exp(expArg3)
+		opsCount += 12
 
-		if exponent > 20 {
-			exponent = 20
-		} else if exponent < -20 {
-			exponent = -20
+		xi := x1*x2 + x3
+		opsCount += 2
+
+		if xi <= 0 || math.IsNaN(xi) || math.IsInf(xi, 0) {
+			xi = 1e-10
 		}
 
-		mu := mu0 * math.Exp(exponent)
-		opsCount += 2 // вычисление экспоненты, умножение
+		// Температура и вязкость
+		temperature := Tr + (1.0/b)*math.Log(xi)
+		opsCount += 3
 
-		viscosity := mu * math.Pow(gammaDot, n-1)
-		opsCount += 3 // вычитание, возведение в степень, умножение
+		viscosity := mu0 * math.Exp(-b*(temperature-Tr)) * math.Pow(gammaDot, n-1.0)
+		opsCount += 5
 
 		profile = append(profile, model.Point{
 			X:           z,
-			Temperature: currentTemp,
+			Temperature: temperature,
 			Viscosity:   viscosity,
 		})
-
-		if i == steps {
-			break
-		}
-
-		qGammaTotal := H * W * viscosity * math.Pow(gammaDot, 2)
-		opsCount += 5 // возведение в степень, умножение (4)
-
-		qAlphaTotal := W * alphaU * (Tu - currentTemp)
-		opsCount += 3 // вычитание, умножение (2)
-
-		if denominator > 0 {
-			dT := ((qGammaTotal + qAlphaTotal) / denominator) * dz
-			currentTemp += dT
-			opsCount += 4 // сложение, деление, умножение, сложение
-		}
 	}
 
 	lastPoint := profile[len(profile)-1]
+
+	// Производительность
+	productivity := rho * Qch * 3600
+	opsCount += 2
 
 	return &model.CalculationResult{
 		Productivity: productivity,
@@ -336,7 +347,7 @@ func (s *CalculationService) compute(input *model.CalculationInput, params map[s
 		Metrics: model.Metrics{
 			CalcTimeMs:      0,
 			MemoryUsedBytes: 0,
-			OperationsCount: opsCount, // В структуре model.Metrics потребуется добавить поле OperationsCount (соответствует n_AO из ТЗ)
+			OperationsCount: opsCount,
 		},
 	}
 }
